@@ -1,10 +1,13 @@
-import std::io, std::io::file;
+import std::io, std::ascii, std::io::file;
 import std::collections::list;
 import std::math::random;
 import std::encoding::csv;
 
 import raylib5::rl;
 
+const usz MAX_CHAR = 10;
+
+/* Expense && Account */
 const String EMPTY = "No values";
 const usz MAX_COST = 10;
 const usz BUFSIZ = 8192;
@@ -82,14 +85,11 @@ fn int handle_error(fault err){
 }
 
 fn int main(int argc, char** argv){
-  io::printfn("RAYLIB_PI = %f", rl::PI);
-  
   File bank = file::open("./res/bank.csv", "r")!!;
   defer (void) bank.close();
 
-  char[] buffer = mem::new_array(char, BUFSIZ);
-  defer free(buffer);
-
+  // char[] buffer = mem::new_array(char, BUFSIZ);
+  // defer free(buffer);
   // usz r_bytes;
   // while((r_bytes = bank.read(buffer)!!) > 0){
   //   io::printfn("bytes read: %d", r_bytes);
@@ -134,19 +134,56 @@ fn int main(int argc, char** argv){
   rl::initWindow(w, h, "raylib in fucking C3");
   rl::setTargetFPS(60);
 
-  rl::Vector2 vec = {.x = 700, .y = 225};
+  int[3] rectProp = {10, 150, 30};
+  int selected = 0;
+
+  ZString[4] inputs;
+  for(int i = 0; i < inputs.len; i++){
+    inputs[i] = (ZString) mem::new_array(char, MAX_CHAR + 1); 
+    inputs[i][0] = '\0';
+  }
+  int[4] current_pos = {0, 0, 0, 0};
 
   while(!rl::windowShouldClose()){
     //UPDATE
+    if(rl::isKeyPressed(rl::KEY_TAB)){
+      selected++;
+      if(selected > 3) selected = 0;
+    }
+
+    if(rl::isKeyPressed(rl::KEY_BACKSPACE)){
+      current_pos[selected]--;
+      if(current_pos[selected] < 0) current_pos[selected] = 0;
+      int curr = current_pos[selected];
+      inputs[selected][curr] = '\0';
+    };
     
+    int key = rl::getCharPressed();
+    while(key > 0){
+      if(current_pos[selected] < MAX_CHAR && ascii::is_alnum((char) key)){
+        int curr = current_pos[selected];
+        inputs[selected][curr] = (char) key;
+        inputs[selected][curr + 1] = '\0';
+        current_pos[selected]++;
+      }
+      key = rl::getCharPressed();
+    }
 
     //DRAWING
     rl::@drawing(){
       rl::clearBackground(rl::RAYWHITE);
-      rl::drawRing(vec, 150.f, 170.f, 0.f, 360.f, 0, rl::BLACK);
-      rl::drawText("Hello worlddoooooo !", 190, 200, 20, rl::LIGHTGRAY);
-      rl::drawText("Yohan", 190, 220, 20, rl::RED);
+      for(int i = 0; i < 4; i++){
+        int x = rectProp[0] + (i * 160);
+        rl::drawRectangle(x, rectProp[0], rectProp[1], rectProp[2], rl::DARKGRAY);
+        rl::drawText(inputs[i], x + 5, rectProp[0] + 5, 20, rl::RED);
+        if(selected == i){
+          rl::drawRectangleLines(x, rectProp[0], rectProp[1], rectProp[2], rl::RED);
+        } else {
+          rl::drawRectangleLines(x, rectProp[0], rectProp[1], rectProp[2], rl::BLACK);
+        }
+      }
     };
+
   }
 
   rl::closeWindow();
