@@ -1,0 +1,11 @@
+{
+    "sources" : [ "src/**" ],
+    "targets" : {
+        "banking" : {
+            "type" : "executable",
+            "link-args" : [],
+            "dependencies" : [],
+            "linked-libraries" : ["raylib"]
+        },
+    }
+}
