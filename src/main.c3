@@ -64,6 +64,10 @@ fn String Expense.to_string(&self){
   return string::tformat("cost: %d, type: %s, aut: %s, desc: %s", self.cost, self.type, self.author, self.description);
 }
 
+fn ZString Expense.to_zstring(&self){
+  return self.to_string().zstr_copy(allocator::heap());
+}
+
 fn void generate_exp(List{Expense}* expenses, usz nb){
   expenses.init(allocator::heap(), nb);
 
@@ -82,6 +86,32 @@ fn void generate_exp(List{Expense}* expenses, usz nb){
 fn int handle_error(fault err){
   io::printfn("Got an handled error: %s", err);
   return 1;
+}
+
+List{Expense}* expenses;
+ZString[4] inputs;
+int[4] current_pos = {0, 0, 0, 0};
+
+fn void init_inputs(){
+  for(int i = 0; i < inputs.len; i++){
+    inputs[i] = (ZString) mem::new_array(char, MAX_CHAR + 1); 
+    inputs[i][0] = '\0';
+  }
+}
+
+fn void store_inputs(){
+  io::printfn("%s", inputs);
+  Expense exp;
+  int price = inputs[0].str_view().to_int()!!;
+  exp.init(price, INCOME, inputs[2].copy(allocator::heap()));
+  expenses.push(exp);
+}
+
+fn void reset_inputs(){
+  for (int i = 0; i < inputs.len; i++){
+    inputs[i][0] = '\0';
+    current_pos[i] = 0;
+  }
 }
 
 fn int main(int argc, char** argv){
@@ -110,7 +140,7 @@ fn int main(int argc, char** argv){
     if(err != io::EOF) return handle_error(err);
   }
   
-  List{Expense}* expenses = malloc(List{Expense}.sizeof);
+  expenses = malloc(List{Expense}.sizeof);
   defer {
     expenses.free();
     free(expenses);
@@ -137,12 +167,7 @@ fn int main(int argc, char** argv){
   int[3] rectProp = {10, 150, 30};
   int selected = 0;
 
-  ZString[4] inputs;
-  for(int i = 0; i < inputs.len; i++){
-    inputs[i] = (ZString) mem::new_array(char, MAX_CHAR + 1); 
-    inputs[i][0] = '\0';
-  }
-  int[4] current_pos = {0, 0, 0, 0};
+  init_inputs();
 
   while(!rl::windowShouldClose()){
     //UPDATE
@@ -157,6 +182,11 @@ fn int main(int argc, char** argv){
       int curr = current_pos[selected];
       inputs[selected][curr] = '\0';
     };
+
+    if(rl::isKeyPressed(rl::KEY_ENTER)){
+      store_inputs();
+      reset_inputs();
+    }
     
     int key = rl::getCharPressed();
     while(key > 0){
@@ -172,7 +202,9 @@ fn int main(int argc, char** argv){
     //DRAWING
     rl::@drawing(){
       rl::clearBackground(rl::RAYWHITE);
-      for(int i = 0; i < 4; i++){
+      
+      // inputs 
+      for(int i = 0; i < inputs.len; i++){
         int x = rectProp[0] + (i * 160);
         rl::drawRectangle(x, rectProp[0], rectProp[1], rectProp[2], rl::DARKGRAY);
         rl::drawText(inputs[i], x + 5, rectProp[0] + 5, 20, rl::RED);
@@ -182,11 +214,16 @@ fn int main(int argc, char** argv){
           rl::drawRectangleLines(x, rectProp[0], rectProp[1], rectProp[2], rl::BLACK);
         }
       }
+
+      // expense list
+      for(int i = 0; i < expenses.len(); i++){
+        int y = 70 + 30 * i;
+        rl::drawText(expenses.get(i).to_zstring(), 10, y, 20, rl::BLACK);
+      }
     };
 
   }
 
   rl::closeWindow();
-  
   return 0;
 }
