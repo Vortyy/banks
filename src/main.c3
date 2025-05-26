@@ -1,4 +1,6 @@
-import std::io, std::ascii, std::io::file;
+import std::io, std::io::file;
+import std::ascii;
+import std::time::datetime;
 import std::collections::list;
 import std::math::random;
 import std::encoding::csv;
@@ -12,14 +14,12 @@ const String EMPTY = "No values";
 const usz MAX_COST = 10;
 const usz BUFSIZ = 8192;
 
+faultdef
+  UNKNOWN_EXPENSE_TYPE;
+
 String[4] auth = {"yohan", "lucile", "vero", "david"};
 
-enum ExpenseType
-{
-  INCOME,
-  OUTCOME
-}
-
+/* Account */
 struct Account
 {
   String name;
@@ -45,10 +45,18 @@ fn void Account.getTotal(&self)
   }
 }
 
+enum ExpenseType
+{
+  INCOME,
+  OUTCOME
+}
+
+/* Expense */
 struct Expense
 {
   int cost;
   ExpenseType type;
+  DateTime date;
   String author;
   String description;
 }
@@ -56,6 +64,7 @@ struct Expense
 fn void Expense.init(&self, int cost, ExpenseType type, String author = EMPTY, String description = EMPTY){
   self.cost = cost;
   self.type = type;
+  self.date = datetime::now();
   self.author = author;
   self.description = description;
 }
@@ -68,6 +77,47 @@ fn ZString Expense.to_zstring(&self){
   return self.to_string().zstr_copy(allocator::heap());
 }
 
+/* Raylib input's */
+struct Input 
+{
+  ZString content;
+  int current_pos;
+}
+
+fn void Input.init(&self){
+  self.content = (ZString) mem::new_array(char, MAX_CHAR + 1); 
+  self.content[0] = '\0';
+  self.current_pos = 0;
+}
+
+fn bool Input.is_empty(&self){
+  return self.current_pos == 0;
+}
+
+fn void Input.reset(&self){
+  self.content[0] = '\0';
+  self.current_pos = 0;
+}
+
+fn void Input.add_char(&self, char key){
+  if(self.current_pos <= MAX_CHAR){
+    self.content[self.current_pos] = key;
+    self.content[self.current_pos + 1] = '\0';
+    self.current_pos++;
+  }
+ }
+
+fn void Input.remove_char(&self){
+  self.current_pos--;
+  if(self.current_pos < 0) self.current_pos = 0;
+  self.content[self.current_pos] = '\0';
+}
+
+fn String Input.copy(&self){
+  return self.content.copy(allocator::heap());
+}
+
+/* Utils */
 fn void generate_exp(List{Expense}* expenses, usz nb){
   expenses.init(allocator::heap(), nb);
 
@@ -83,36 +133,55 @@ fn void generate_exp(List{Expense}* expenses, usz nb){
   }
 }
 
+fn ExpenseType? getType(String content){
+  if(content == "inc"){
+    return INCOME;
+  }
+
+  return UNKNOWN_EXPENSE_TYPE?;
+}
+
 fn int handle_error(fault err){
   io::printfn("Got an handled error: %s", err);
   return 1;
 }
 
 List{Expense}* expenses;
-ZString[4] inputs;
-int[4] current_pos = {0, 0, 0, 0};
+Input[4] inputs;
 
 fn void init_inputs(){
   for(int i = 0; i < inputs.len; i++){
-    inputs[i] = (ZString) mem::new_array(char, MAX_CHAR + 1); 
-    inputs[i][0] = '\0';
+    inputs[i].init();
   }
-}
-
-fn void store_inputs(){
-  io::printfn("%s", inputs);
-  Expense exp;
-  int price = inputs[0].str_view().to_int()!!;
-  exp.init(price, INCOME, inputs[2].copy(allocator::heap()));
-  expenses.push(exp);
 }
 
 fn void reset_inputs(){
   for (int i = 0; i < inputs.len; i++){
-    inputs[i][0] = '\0';
-    current_pos[i] = 0;
+    inputs[i].reset();
   }
 }
+
+/* store_inputs: try to store inputs if achieve it return true */
+fn bool store_inputs(){
+  // Validate data
+  for(int i = 0; i < inputs.len; i++){
+    if(inputs[i].is_empty()) return false;
+  }
+    
+  int? value = inputs[0].copy().to_int();
+  if(catch excuse = value) return false;
+
+  ExpenseType? type = getType(inputs[1].content.str_view());
+  if(catch excuse = type) return false;
+
+  // create and expense and store it
+  Expense exp;
+  exp.init(value, type, inputs[2].copy(), inputs[3].copy());
+  expenses.push(exp);
+
+  return true;
+}
+
 
 fn int main(int argc, char** argv){
   File bank = file::open("./res/bank.csv", "r")!!;
@@ -161,6 +230,7 @@ fn int main(int argc, char** argv){
   int w = 800;
   int h = 450;
 
+  rl::setConfigFlags(rl::FLAG_WINDOW_RESIZABLE);
   rl::initWindow(w, h, "raylib in fucking C3");
   rl::setTargetFPS(60);
 
@@ -177,24 +247,18 @@ fn int main(int argc, char** argv){
     }
 
     if(rl::isKeyPressed(rl::KEY_BACKSPACE)){
-      current_pos[selected]--;
-      if(current_pos[selected] < 0) current_pos[selected] = 0;
-      int curr = current_pos[selected];
-      inputs[selected][curr] = '\0';
+      inputs[selected].remove_char();
     };
 
     if(rl::isKeyPressed(rl::KEY_ENTER)){
-      store_inputs();
-      reset_inputs();
+      if(store_inputs()) reset_inputs();
     }
     
     int key = rl::getCharPressed();
     while(key > 0){
-      if(current_pos[selected] < MAX_CHAR && ascii::is_alnum((char) key)){
-        int curr = current_pos[selected];
-        inputs[selected][curr] = (char) key;
-        inputs[selected][curr + 1] = '\0';
-        current_pos[selected]++;
+      char ckey = (char) key;
+      if(ascii::is_alnum(ckey)){
+        inputs[selected].add_char(ckey); 
       }
       key = rl::getCharPressed();
     }
@@ -203,11 +267,11 @@ fn int main(int argc, char** argv){
     rl::@drawing(){
       rl::clearBackground(rl::RAYWHITE);
       
-      // inputs 
+      // Inputs 
       for(int i = 0; i < inputs.len; i++){
         int x = rectProp[0] + (i * 160);
         rl::drawRectangle(x, rectProp[0], rectProp[1], rectProp[2], rl::DARKGRAY);
-        rl::drawText(inputs[i], x + 5, rectProp[0] + 5, 20, rl::RED);
+        rl::drawText(inputs[i].content, x + 5, rectProp[0] + 5, 20, rl::RED);
         if(selected == i){
           rl::drawRectangleLines(x, rectProp[0], rectProp[1], rectProp[2], rl::RED);
         } else {
@@ -215,7 +279,7 @@ fn int main(int argc, char** argv){
         }
       }
 
-      // expense list
+      // Expenses list
       for(int i = 0; i < expenses.len(); i++){
         int y = 70 + 30 * i;
         rl::drawText(expenses.get(i).to_zstring(), 10, y, 20, rl::BLACK);
