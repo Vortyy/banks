@@ -7,8 +7,6 @@ import std::encoding::csv;
 
 import raylib5::rl;
 
-const usz MAX_CHAR = 10;
-
 /* Expense && Account */
 const String EMPTY = "No values";
 const usz MAX_COST = 10;
@@ -70,7 +68,7 @@ fn void Expense.init(&self, int cost, ExpenseType type, String author = EMPTY, S
 }
 
 fn String Expense.to_string(&self){
-  return string::tformat("cost: %d, type: %s, aut: %s, desc: %s", self.cost, self.type, self.author, self.description);
+  return string::tformat("%s:%d:%s:%s", self.date.format(allocator::heap(), DATEONLY), self.cost, self.author, self.description);
 }
 
 fn ZString Expense.to_zstring(&self){
@@ -78,6 +76,8 @@ fn ZString Expense.to_zstring(&self){
 }
 
 /* Raylib input's */
+const usz MAX_CHAR = 10;
+
 struct Input 
 {
   ZString content;
@@ -100,7 +100,7 @@ fn void Input.reset(&self){
 }
 
 fn void Input.add_char(&self, char key){
-  if(self.current_pos <= MAX_CHAR){
+  if(self.current_pos < MAX_CHAR){
     self.content[self.current_pos] = key;
     self.content[self.current_pos + 1] = '\0';
     self.current_pos++;
@@ -182,7 +182,6 @@ fn bool store_inputs(){
   return true;
 }
 
-
 fn int main(int argc, char** argv){
   File bank = file::open("./res/bank.csv", "r")!!;
   defer (void) bank.close();
@@ -229,6 +228,7 @@ fn int main(int argc, char** argv){
 
   int w = 800;
   int h = 450;
+  int frm_counter = 0;
 
   rl::setConfigFlags(rl::FLAG_WINDOW_RESIZABLE);
   rl::initWindow(w, h, "raylib in fucking C3");
@@ -241,7 +241,11 @@ fn int main(int argc, char** argv){
 
   while(!rl::windowShouldClose()){
     //UPDATE
+    w = rl::getScreenWidth();
+    h = rl::getScreenHeight();
+
     if(rl::isKeyPressed(rl::KEY_TAB)){
+      frm_counter = 0;
       selected++;
       if(selected > 3) selected = 0;
     }
@@ -257,11 +261,13 @@ fn int main(int argc, char** argv){
     int key = rl::getCharPressed();
     while(key > 0){
       char ckey = (char) key;
-      if(ascii::is_alnum(ckey)){
+      if(ascii::is_alnum(ckey) || ascii::is_space(ckey)){
         inputs[selected].add_char(ckey); 
       }
       key = rl::getCharPressed();
     }
+
+    frm_counter++;
 
     //DRAWING
     rl::@drawing(){
@@ -274,10 +280,16 @@ fn int main(int argc, char** argv){
         rl::drawText(inputs[i].content, x + 5, rectProp[0] + 5, 20, rl::RED);
         if(selected == i){
           rl::drawRectangleLines(x, rectProp[0], rectProp[1], rectProp[2], rl::RED);
+          if(inputs[i].current_pos < MAX_CHAR){
+            if((frm_counter/20) % 2 == 0) rl::drawText("_", x + 8 + rl::measureText(inputs[i].content, 20) , rectProp[0] + 5, 20, rl::RED);
+          }
         } else {
           rl::drawRectangleLines(x, rectProp[0], rectProp[1], rectProp[2], rl::BLACK);
         }
       }
+
+      // Draw expenses list container
+      rl::drawRectangleLines(10, 60, w/2 - 10, h - 100, rl::BLACK);
 
       // Expenses list
       for(int i = 0; i < expenses.len(); i++){
@@ -287,6 +299,9 @@ fn int main(int argc, char** argv){
     };
 
   }
+
+  // TODO: File system to keep track of expenses
+  // TODO: left part for keep monthly total
 
   rl::closeWindow();
   return 0;

@@ -759,7 +759,7 @@ fn void beginDrawing() @extern("BeginDrawing");                                 
 fn void endDrawing() @extern("EndDrawing");                                                 // End canvas drawing and swap buffers (double buffering)
 fn void beginMode2D(Camera2D camera) @extern("BeginMode2D");                                // Begin 2D mode with custom camera (2D)
 fn void endMode2D() @extern("EndMode2D");                                                   // Ends 2D mode with custom camera
-fn void beginMode3D(Camera3D camera) @extern("BeginMode3D");                                // Begin 3D mode with custom camera (3D)
+fn void beginMode1D(Camera3D camera) @extern("BeginMode3D");                                // Begin 3D mode with custom camera (3D)
 fn void endMode3D() @extern("EndMode3D");                                                   // Ends 3D mode and returns to default 2D orthographic mode
 fn void beginTextureMode(RenderTexture2D target) @extern("BeginTextureMode");              // Begin drawing to render texture
 fn void endTextureMode() @extern("EndTextureMode");                                        // Ends drawing to render texture
