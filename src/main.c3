@@ -7,6 +7,10 @@ import std::encoding::csv;
 
 import raylib5::rl;
 
+macro set_centered(box_size, elemnt_size){
+  return (box_size / 2) - (elemnt_size / 2);
+}
+
 /* Expense && Account */
 const String EMPTY = "No values";
 const usz MAX_COST = 10;
@@ -73,6 +77,22 @@ fn String Expense.to_string(&self){
 
 fn ZString Expense.to_zstring(&self){
   return self.to_string().zstr_copy(allocator::heap());
+}
+
+fn ZString Expense.get_author(&self){
+  return self.author.zstr_tcopy();
+}
+
+fn ZString Expense.get_description(&self){
+  return self.description.zstr_tcopy();
+}
+
+fn ZString Expense.get_cost(&self){
+  return string::tformat("%d", self.cost).zstr_tcopy();
+}
+
+fn ZString Expense.get_date(&self){
+  return self.date.format(allocator::heap(), DATEONLY).zstr_tcopy();
 }
 
 /* Raylib input's */
@@ -146,6 +166,9 @@ fn int handle_error(fault err){
   return 1;
 }
 
+int text_size = 10;
+const usz DEFAULT_TEXT = 10;
+const usz BIG_TEXT = 20;
 List{Expense}* expenses;
 Input[4] inputs;
 
@@ -174,7 +197,7 @@ fn bool store_inputs(){
   ExpenseType? type = getType(inputs[1].content.str_view());
   if(catch excuse = type) return false;
 
-  // create and expense and store it
+  // create an expense and store it
   Expense exp;
   exp.init(value, type, inputs[2].copy(), inputs[3].copy());
   expenses.push(exp);
@@ -244,6 +267,9 @@ fn int main(int argc, char** argv){
     w = rl::getScreenWidth();
     h = rl::getScreenHeight();
 
+    text_size = ( w <= 800 ) ? DEFAULT_TEXT : BIG_TEXT;
+    
+
     if(rl::isKeyPressed(rl::KEY_TAB)){
       frm_counter = 0;
       selected++;
@@ -277,11 +303,11 @@ fn int main(int argc, char** argv){
       for(int i = 0; i < inputs.len; i++){
         int x = rectProp[0] + (i * 160);
         rl::drawRectangle(x, rectProp[0], rectProp[1], rectProp[2], rl::DARKGRAY);
-        rl::drawText(inputs[i].content, x + 5, rectProp[0] + 5, 20, rl::RED);
+        rl::drawText(inputs[i].content, x + 5, rectProp[0] + 5, text_size, rl::RED);
         if(selected == i){
           rl::drawRectangleLines(x, rectProp[0], rectProp[1], rectProp[2], rl::RED);
           if(inputs[i].current_pos < MAX_CHAR){
-            if((frm_counter/20) % 2 == 0) rl::drawText("_", x + 8 + rl::measureText(inputs[i].content, 20) , rectProp[0] + 5, 20, rl::RED);
+            if((frm_counter/text_size) % 2 == 0) rl::drawText("_", x + 8 + rl::measureText(inputs[i].content, text_size) , rectProp[0] + 5, text_size, rl::RED);
           }
         } else {
           rl::drawRectangleLines(x, rectProp[0], rectProp[1], rectProp[2], rl::BLACK);
@@ -289,19 +315,39 @@ fn int main(int argc, char** argv){
       }
 
       // Draw expenses list container
-      rl::drawRectangleLines(10, 60, w/2 - 10, h - 100, rl::BLACK);
+      rl::drawRectangleLines(10, 60, w/2 - text_size, h - 100 , rl::BLACK);
+     
+      int box_size = ((w/2 - text_size) / 4);
+      // Draw 3 lines + headers
+      for(int i = 1; i < 4; i++){
+        int x = box_size * i + 10;
+        rl::drawLine(x, 60, x, h - 40, rl::BLACK);
+      }
 
       // Expenses list
       for(int i = 0; i < expenses.len(); i++){
+        Expense* ptr_exp = expenses.get_ref(i);
         int y = 70 + 30 * i;
-        rl::drawText(expenses.get(i).to_zstring(), 10, y, 20, rl::BLACK);
+
+        // Text measurement
+        int author_size = rl::measureText(ptr_exp.get_author(), text_size);
+        int description_size = rl::measureText(ptr_exp.get_description(), text_size);
+        int cost_size = rl::measureText(ptr_exp.get_cost(), text_size);
+        int date_size = rl::measureText(ptr_exp.get_date(), text_size);
+
+        // Write text
+        // TODO: check if box_size > measure text and write a substring ???
+        rl::drawText(ptr_exp.get_date(), set_centered(box_size, date_size) + 10, y, text_size, rl::BLACK);//Date
+        rl::drawText(ptr_exp.get_author(), set_centered(box_size, author_size) + (box_size + 10), y, text_size, rl::BLACK);//Author
+        rl::drawText(ptr_exp.get_description(), set_centered(box_size, description_size) + (box_size * 2 + 10), y, text_size, rl::BLACK);//Description
+        rl::drawText(ptr_exp.get_cost(), set_centered(box_size, cost_size) + (box_size * 3 + 10), y, text_size, rl::BLACK);//Cost
       }
     };
-
   }
 
   // TODO: File system to keep track of expenses
-  // TODO: left part for keep monthly total
+  // TODO: let part for keep monthly total
+  // TODO: phone sized when screen width < x
 
   rl::closeWindow();
   return 0;
