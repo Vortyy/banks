@@ -14,6 +14,7 @@
 const char libpath[] = "./displayer.so";
 char pname[PNAME_BUFSIZ] = "NO_NAME";
 
+void (*init_displayer_fct)();
 void (*displayer_fct)();
 void * displayer_module;
 
@@ -31,6 +32,7 @@ void loadLib(){
   // TODO: find a best way to open lib than brute forcing dlopen
   while((displayer_module = dlopen(libpath, RTLD_NOW)) == NULL);
   
+  init_displayer_fct = dlsym(displayer_module, "init");
   displayer_fct = dlsym(displayer_module, "display");
 
   TraceLog(LOG_INFO, "%s: Shared lib loaded", pname);
@@ -45,9 +47,6 @@ int setStat(){
 }
 
 void setPname(char *value){
-#if DEBUG
-  printf("DEBUG MODE ACTIVE\n");
-#endif
   char * p;
 
   // skip "./"
@@ -79,6 +78,7 @@ int main(int argc, char** argv) {
     if(difftime(sb.st_mtime, last_mod) > 0){
       last_mod = sb.st_mtime;
       loadLib();
+      init_displayer_fct();
     }
 
     displayer_fct();
