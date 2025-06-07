@@ -69,6 +69,7 @@ int main(int argc, char** argv) {
   const int w = 800;
   const int h = 450;
     
+  SetConfigFlags(FLAG_WINDOW_RESIZABLE);
   InitWindow(w, h, "raylib go back to C");
   SetTargetFPS(60);
 
