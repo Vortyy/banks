@@ -16,6 +16,7 @@ char pname[PNAME_BUFSIZ] = "NO_NAME";
 
 void (*init_displayer_fct)();
 void (*displayer_fct)();
+void (*clear_displayer_fct)();
 void * displayer_module;
 
 struct stat sb;
@@ -23,6 +24,7 @@ struct stat sb;
 /* loadLib : loads a shared library that contains a displayer in raylib */
 void loadLib(){
   if(displayer_module != NULL) {
+    clear_displayer_fct();
     dlclose(displayer_module);
   }
 
@@ -34,6 +36,7 @@ void loadLib(){
   
   init_displayer_fct = dlsym(displayer_module, "init");
   displayer_fct = dlsym(displayer_module, "display");
+  clear_displayer_fct = dlsym(displayer_module, "clear");
 
   TraceLog(LOG_INFO, "%s: Shared lib loaded", pname);
 }
