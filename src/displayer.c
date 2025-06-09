@@ -2,14 +2,16 @@
 #include <string.h>
 #include <raylib.h>
 #include <ctype.h>
-#include <time.h>
+
+#include "bank.h" // Expenses && Account
+#include "input.h" // Custom Input
 
 // TODO: Maybe created a shared context to save data during runner exec
 // Late binding can be fun -> https://stackoverflow.com/questions/32347910/oop-in-c-implicitly-pass-self-as-parameter
 
 // Thx Tsoding and al.
 #define ARENA_IMPLEMENTATION
-#include "./includes/arena.h"
+#include "arena.h"
 
 #define INPUT_SIZE 3 
 #define DISPLAYED_COLUMN 3
@@ -25,127 +27,25 @@
 #define SET_CENTERED(box_size, elemnt_size) \
   ((box_size / 2) - (elemnt_size / 2))
 
+void reset_inputs();
+int store_inputs();
+void save_expense(Expense * exp);
+void load_storage(Account * account);
 
-/* Arena allocator */
+/* Window && Globals variables */
+
+/* Arena allocator declaration */
 Arena a = {0};
 
-/* Input (24bytes) */ 
-typedef struct __input_struct {
-  char * content;
-  const char * placeholder;
-  int char_limit; 
-  int current_pos;
-} Input;
+int frm_counter = 0;
+int w = 0;
+int h = 0;
 
-void input_init(Input * input, int char_limit, const char * placeholder);
-void input_add_char(Input * self, char c);
-void input_del_char(Input * self);
-void input_reset(Input * self);
-
+Account account;
 Input inputs[INPUT_SIZE];
 
 int selected = 0;
 int rect_prop[3]  = {10, 150, 30};
-
-void input_init(Input * input, int char_limit, const char * placeholder){
-  input->content = (char *) arena_alloc(&a, sizeof(char) * (char_limit + 1));
-  input->placeholder = placeholder;
-  input->char_limit = char_limit;
-
-  *input->content = '\0';
-  input->current_pos = 0;
-} 
-
-void input_add_char(Input * self, char c){
-  if(self->current_pos < self->char_limit){
-    self->content[self->current_pos] = c;
-    self->content[self->current_pos + 1] = '\0';
-    self->current_pos++;
-  }
-}
-
-void input_del_char(Input * self){
-  self->current_pos--;
-  if(self->current_pos < 0) self->current_pos = 0;
-  self->content[self->current_pos] = '\0';
-}
-
-void input_reset(Input * self){
-  self->content[0] = '\0';
-  self->current_pos = 0;
-}
-
-/* Account && Expenses */
-
-typedef enum __expense_type {
-  INCOME,
-  OUTCOME,
-  ERROR
-} ExpenseType;
-
-typedef struct __expense_struct {
-  int cost;
-  ExpenseType type;
-  time_t date;
-  char * sdate;
-  char * author;
-} Expense;
-
-void save_expense(Expense * exp);
-
-
-#define exp_init_now(exp, cost, type, author) exp_init(exp, cost, (time_t) NULL, type, author)
-
-void exp_init(Expense * exp, int cost, time_t exp_time, ExpenseType type, char * author){
-  exp->cost = cost;
-  exp->type = type;
-  exp->author = author;
-  exp->date = time(&exp_time);
-
-  struct tm * pTime = localtime(&exp->date);
-  char * buffer = (char *) arena_alloc(&a, sizeof(char) * 8);
-  strftime(buffer, 8, "%d/%m", pTime);
-  exp->sdate = buffer;
-}
-
-ExpenseType get_type(char * type_string){
-  if(strcmp(type_string, "inc") == 0){
-    return INCOME;
-  }
-
-  if(strcmp(type_string, "out") == 0){
-    return OUTCOME;
-  }
-
-  return ERROR;
-}
-
-#define exp_print(exp) TraceLog(LOG_INFO, "%s: exp.cost: %d, exp.author: %s, exp.date %s", LOG_PNAME, exp->cost, exp->author, exp->sdate)
-
-typedef struct __account_struct {
-  Expense * list;
-  char * name;
-  int exp_nb;
-  int max_exp_nb;
-} Account;
-
-void account_add_exp(Account * account, int cost, time_t time, ExpenseType type, char * author){
-  if(account->exp_nb < account->max_exp_nb){
-    Expense * exp = account->list + account->exp_nb;
-    if(time == 0)
-      exp_init_now(exp, cost, type, author);
-    else
-      exp_init(exp, cost, time, type, author);
-    account->exp_nb++;
-  }
-}
-
-Account account;
-
-/* Window */
-int frm_counter = 0;
-int w = 0;
-int h = 0;
 
 /* Utils */
 int store_inputs(){
@@ -175,6 +75,7 @@ int store_inputs(){
 void reset_inputs(){
   for(int i = 0; i < INPUT_SIZE; i++){
     input_reset(&inputs[i]);
+    selected=0;
   }
 }
 
@@ -200,6 +101,7 @@ void load_storage(Account * account){
 
   if((fp = fopen(PATH_STORAGE, "r")) == NULL){
     TraceLog(LOG_ERROR, "%s: unable to open filepath %s", LOG_PNAME, PATH_STORAGE);
+    return;
   }
 
   char buffer[BUFSIZ];
@@ -301,15 +203,16 @@ void display()
       }
     }
 
-    int box_size = ((w/2 - SCREEN_MARGIN * 2) / DISPLAYED_COLUMN);
+    DrawRectangle(10, 60, w - 20, h - 130 , DARKGRAY);
+    int box_size = ((w - SCREEN_MARGIN * 2) / DISPLAYED_COLUMN);
 
     int y = 65;
     // Expenses list
-    for(int i = 0; i < account.exp_nb && (y + 25) < h - 40; i++){
+    for(int i = 0; i < account.exp_nb && y < h - 40; i++){
       Expense * ptr_exp = account.list + ((account.exp_nb - 1) - i);
 
       Color bg_color = (ptr_exp->type == INCOME) ? GREEN : RED;
-      DrawRectangle(10, 60 + 30 * i, w/2 - 21,  30, bg_color);
+      DrawRectangle(10, 60 + 30 * i, w - 20,  30, bg_color);
 
       // Text measurement
       int author_size = MeasureText(ptr_exp->author, TEXT_SIZE);
@@ -320,22 +223,22 @@ void display()
       // TODO: check if box_size > measure text and write a substring ???
       DrawText(ptr_exp->sdate, SET_CENTERED(box_size, date_size) + SCREEN_MARGIN, y, TEXT_SIZE, BLACK);//Date
       DrawText(ptr_exp->author, SET_CENTERED(box_size, author_size) + (box_size + SCREEN_MARGIN), y, TEXT_SIZE, BLACK);//Author
-      DrawText(TextFormat("%d", ptr_exp->cost), SET_CENTERED(box_size, cost_size) + (box_size * 2 + SCREEN_MARGIN), y, TEXT_SIZE, BLACK);//Cost
+      DrawText(TextFormat("%f", ptr_exp->cost), SET_CENTERED(box_size, cost_size) + (box_size * 2 + SCREEN_MARGIN), y, TEXT_SIZE, BLACK);//Cost
 
       y += 30; // starting size need to depend on text size
     }
 
     // Draw expenses list container
-    DrawRectangleLines(10, 60, w/2 - 20, h - 100 , BLACK);
+    DrawRectangleLines(10, 60, w - 20, h - 130 , BLACK);
 
     // Draw 3 lines + headers
     for(int i = 1; i < DISPLAYED_COLUMN; i++){
       int x = box_size * i + 10;
-      DrawLine(x, 60, x, h - 40, BLACK);
+      DrawLine(x, 60, x, h - 70, BLACK);
     }
 
     // TODO: DrawLine and values each month on 6 last months
-    // TODO: HashTable to get each month as linear array of values sorted by their time
+    // TODO: total en bas
 
   EndDrawing();
 }

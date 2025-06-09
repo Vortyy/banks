@@ -1,14 +1,15 @@
 CC = clang
 CFLAGS = all
 LIBS = -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
+SRC_FILES = src/bank.c src/displayer.c src/input.c
 
 # Generates shared libs for hot reloading
 all:
-	$(CC) displayer.c -shared -fPIC $(LIBS) -o displayer.so  
+	$(CC) $(SRC_FILES) -iquote ./includes -shared -fPIC $(LIBS) -o displayer.so  
 
 # Runner that run the shared lib inside a Raylib window
 runner:
-	$(CC) runner.c -DDEBUG $(LIBS) -o rayrunner 
+	$(CC) src/runner.c -DDEBUG $(LIBS) -o rayrunner 
 
 rlaunch: runner
 	./rayrunner
