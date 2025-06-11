@@ -18,4 +18,6 @@ void input_add_char(Input * self, char c);
 void input_del_char(Input * self);
 void input_reset(Input * self);
 
+void input_draw(Input * self, int x, int y, int width, int heigth, int selected); // This method is implemented by the renderer
+
 #endif

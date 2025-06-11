@@ -9,17 +9,16 @@
 
 #include <raylib.h>
 
-#define PNAME_BUFSIZ 20
+#define PNAME "MY_RUNNER"
+#define DISPLAYER_PATH "./displayer.so"
 
-const char libpath[] = "./displayer.so";
-char pname[PNAME_BUFSIZ] = "NO_NAME";
-
-void (*init_displayer_fct)();
+/* function provided by the displayer */
+void (*init_displayer_fct)(); 
 void (*displayer_fct)();
 void (*clear_displayer_fct)();
 void * displayer_module;
 
-struct stat sb;
+struct stat sb; /* stat about displayer.so file */
 
 /* loadLib : loads a shared library that contains a displayer in raylib */
 void loadLib(){
@@ -28,45 +27,28 @@ void loadLib(){
     dlclose(displayer_module);
   }
 
-  TraceLog(LOG_INFO, "%s: Loading shared lib...", pname);
+  TraceLog(LOG_INFO, "%s: Loading shared lib...", PNAME);
 
   // TODO: close when program spend more than 5sec to dlopen
   // TODO: find a best way to open lib than brute forcing dlopen
-  while((displayer_module = dlopen(libpath, RTLD_NOW)) == NULL);
+  while((displayer_module = dlopen(DISPLAYER_PATH, RTLD_NOW)) == NULL);
   
   init_displayer_fct = dlsym(displayer_module, "init");
   displayer_fct = dlsym(displayer_module, "display");
   clear_displayer_fct = dlsym(displayer_module, "clear");
 
-  TraceLog(LOG_INFO, "%s: Shared lib loaded", pname);
+  TraceLog(LOG_INFO, "%s: Shared lib loaded", PNAME);
 }
 
 int setStat(){
-  int result = stat(libpath, &sb);
+  int result = stat(DISPLAYER_PATH, &sb);
   if(result == -1){
-    TraceLog(LOG_ERROR, "%s: filepath doesn't exist %s", pname, libpath);
+    TraceLog(LOG_ERROR, "%s: filepath doesn't exist %s", PNAME, DISPLAYER_PATH);
   }
   return result;
 }
 
-void setPname(char *value){
-  char * p;
-
-  // skip "./"
-  value++;
-  value++;
-
-  p = pname;
-  while(*value){
-    *p++ = toupper(*value++);
-  }
-
-  *p = '\0';
-}
-
 int main(int argc, char** argv) {
-  setPname(*argv);
-  
   time_t last_mod = 0;
 
   const int w = 800;
