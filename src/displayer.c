@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <raylib.h>
 #include <ctype.h>
@@ -34,6 +35,57 @@ int store_inputs();
 void save_expense(Expense * exp);
 void load_storage(Account * account);
 
+typedef struct __listview_struct {
+  char ** tab;
+  int x;
+  int y;
+  int width;
+  int height;
+
+  int nb_column;
+  int nb_row;
+  int column_width;
+  int row_height;
+} Listview;
+
+Listview lv_create(int x, int y, int width, int height, int nb_column, int row_height)
+{
+  return (Listview){
+    .x = x,
+    .y = y,
+    .width = width,
+    .height = height,
+    .nb_column = nb_column,
+    .nb_row = 0,
+    .column_width = width/nb_column,
+    .row_height = row_height
+  };
+}
+
+void lv_add_row(Listview * self, ...)
+{
+  // TODO
+}
+
+void lv_draw(Listview * self)
+{
+    DrawRectangle(self->x, self->y, self->width, self->height, DARKGRAY);
+
+    // Expenses list
+    // Draw content
+
+    // Draw expenses list container
+    DrawRectangleLines(self->x, self->y, self->width, self->height, BLACK);
+
+    // Draw 3 lines + headers
+    for(int i = 1; i < self->nb_column; i++){
+      int line_x = self->column_width * i + self->x;
+      Vector2 start = {.x = line_x, .y = self->y};
+      Vector2 end = {.x = line_x, .y = self->y + self->height};
+      DrawLineEx(start, end, 5.f, BLACK);
+    }
+}
+
 /* Window && Globals variables */
 
 /* Arena allocator declaration */
@@ -45,32 +97,12 @@ int h = 0;
 
 Account account;
 Input inputs[INPUT_SIZE];
+Listview listview;
 
 float current_total = 0.0f;
 
 int selected = 0;
 int rect_prop[3]  = {10, 150, 30};
-
-/* Drawing */
-
-void input_draw(Input * self, int x, int y, int width, int heigth, int selected)
-{
-  // Background
-  DrawRectangle(x, y, width, heigth, DARKGRAY);
-
-  if(self->current_pos == 0)
-    DrawText(self->placeholder, x + 5, y + 5, TEXT_SIZE, GRAY);
-
-  DrawText(self->content, x + 5, y + 5, TEXT_SIZE, RED);
-  DrawRectangleLines(x, y, width, heigth, BLACK);
-
-  if(selected){
-    DrawRectangleLines(x, y, width, heigth, RED);
-    if(self->current_pos < self->char_limit && self->current_pos > 0){
-      if((frm_counter/20) % 2 == 0) DrawText("_", x + 8 + MeasureText(self->content, TEXT_SIZE), y + 5, TEXT_SIZE, RED);
-    }
-  }
-}
 
 /* Utils */
 int store_inputs(){
@@ -147,9 +179,14 @@ void load_storage(Account * account){
 // Call once when the lib is opened
 void init()
 {
-  input_init(&inputs[0], 5, "Cost");
-  input_init(&inputs[1], 3, "Type");
-  input_init(&inputs[2], 10, "Author");
+  w = GetScreenWidth();
+  h = GetScreenHeight();
+
+  inputs[0] = input_def(10, "cost", 10, 10);
+  inputs[1] = input_def(3, "type", 170, 10);
+  inputs[2] = input_def(10, "author", 330, 10);
+
+  listview = lv_create(10, 60, w - 20, h - 130, 3);
 
   account = (Account) {
     .list = (Expense *) arena_alloc(&a, sizeof(Expense) * MAX_EXPENSES),
@@ -161,6 +198,8 @@ void init()
   load_storage(&account);
   current_total = account_get_total(&account);
   TraceLog(LOG_INFO, "%s: account solde %6.2f", LOG_PNAME, current_total);
+    
+  inputs[selected].state = IS_SELECTED;
 }
 
 // Call once when the lib is closed
@@ -180,9 +219,11 @@ void display()
   // Put a limit to add footer and + moving screen fucktin
 
   if(IsKeyPressed(KEY_TAB)){
+    inputs[selected].state = 0;
     frm_counter = 0;
     selected++;
     if(selected >= INPUT_SIZE) selected = 0;
+    inputs[selected].state = IS_SELECTED;
   }
 
   if(IsKeyPressed(KEY_BACKSPACE)){
@@ -209,12 +250,14 @@ void display()
 
   // DRAWING
   BeginDrawing();
-    ClearBackground(RAYWHITE);
+    ClearBackground(VAMPIREDARK);
     for(int i = 0; i < INPUT_SIZE; i++){
-      int x = 10 + 160 * i;
-      input_draw(&inputs[i], x, rect_prop[0], rect_prop[1], rect_prop[2], (selected == i));
+      input_draw(&inputs[i]);
     }
 
+    lv_draw(&listview);
+
+    /*
     DrawRectangle(10, 60, w - 20, h - 130 , DARKGRAY);
     int box_size = ((w - SCREEN_MARGIN * 2) / DISPLAYED_COLUMN);
 
@@ -246,8 +289,10 @@ void display()
     // Draw 3 lines + headers
     for(int i = 1; i < DISPLAYED_COLUMN; i++){
       int x = box_size * i + 10;
-      DrawLine(x, 60, x, h - 70, BLACK);
-    }
+      Vector2 start = {.x = x, .y = 60};
+      Vector2 end = {.x = x, .y = h - 70};
+      DrawLineEx(start, end, 5.f, BLACK);
+    } */
 
     DrawRectangle(w - 160, h - 40, 150, 30, DARKGRAY);
     DrawRectangleLines(w - 160, h - 40, 150, 30, BLACK);
