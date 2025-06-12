@@ -20,7 +20,6 @@
 #define FRM_COUNTER_MAX_VALUE 2000000
 #define LOG_PNAME "MY_DISPLAYER"
 #define PATH_STORAGE "./store.csv"
-#define PATH_SHADER "./test.fs"
 
 #define MAX_EXPENSES 100
 #define CSV_DELIMITER ","
@@ -39,10 +38,6 @@ void load_storage(Account * account);
 
 /* Arena allocator declaration */
 Arena a = {0};
-
-Shader crt_shader;
-RenderTexture2D target;
-int vp_loc;
 
 int frm_counter = 0;
 int w = 0;
@@ -63,16 +58,16 @@ void input_draw(Input * self, int x, int y, int width, int heigth, int selected)
   // Background
   DrawRectangle(x, y, width, heigth, DARKGRAY);
 
-  if(inputs->current_pos == 0)
-    DrawText(inputs->placeholder, x + 5, y + 5, TEXT_SIZE, GRAY);
+  if(self->current_pos == 0)
+    DrawText(self->placeholder, x + 5, y + 5, TEXT_SIZE, GRAY);
 
-  DrawText(inputs->content, x + 5, y + 5, TEXT_SIZE, RED);
+  DrawText(self->content, x + 5, y + 5, TEXT_SIZE, RED);
   DrawRectangleLines(x, y, width, heigth, BLACK);
 
   if(selected){
     DrawRectangleLines(x, y, width, heigth, RED);
-    if(inputs->current_pos < inputs->char_limit && inputs->current_pos > 0){
-      if((frm_counter/20) % 2 == 0) DrawText("_", x + 8 + MeasureText(inputs->content, TEXT_SIZE), y + 5, TEXT_SIZE, RED);
+    if(self->current_pos < self->char_limit && self->current_pos > 0){
+      if((frm_counter/20) % 2 == 0) DrawText("_", x + 8 + MeasureText(self->content, TEXT_SIZE), y + 5, TEXT_SIZE, RED);
     }
   }
 }
@@ -166,23 +161,12 @@ void init()
   load_storage(&account);
   current_total = account_get_total(&account);
   TraceLog(LOG_INFO, "%s: account solde %6.2f", LOG_PNAME, current_total);
-
-  crt_shader = LoadShader(0, PATH_SHADER);
-  vp_loc = GetShaderLocation(crt_shader, "iResolution");
-  TraceLog(LOG_INFO, "vp: %d", vp_loc);
-
-  w = GetScreenWidth();
-  h = GetScreenHeight();
-
-  target = LoadRenderTexture(w, h);
 }
 
 // Call once when the lib is closed
 void clear()
 {
   TraceLog(LOG_INFO, "%s: Clearing memory", LOG_PNAME);
-  UnloadShader(crt_shader);
-  UnloadRenderTexture(target);
   arena_free(&a);
 }
 
@@ -190,18 +174,9 @@ void clear()
 void display()
 {
   // UPDATE
-  int curr_w = GetScreenWidth();
-  int curr_h = GetScreenHeight();
-  if(w != curr_w || h != curr_h){
-    w = curr_w;
-    h = curr_h;
-    UnloadRenderTexture(target);
-    target = LoadRenderTexture(w, h);
-  }
+  w = GetScreenWidth();
+  h = GetScreenHeight();
 
-  float vp_size[3] = {(float) w, (float) h};
-  SetShaderValue(crt_shader, vp_loc, vp_size, SHADER_UNIFORM_VEC2);
-  
   // Put a limit to add footer and + moving screen fucktin
 
   if(IsKeyPressed(KEY_TAB)){
@@ -233,26 +208,11 @@ void display()
   }
 
   // DRAWING
-  BeginTextureMode(target);
+  BeginDrawing();
     ClearBackground(RAYWHITE);
     for(int i = 0; i < INPUT_SIZE; i++){
       int x = 10 + 160 * i;
-      DrawRectangle(x, rect_prop[0], rect_prop[1], rect_prop[2], DARKGRAY);
-
-      if(inputs[i].current_pos == 0){
-        DrawText(inputs[i].placeholder, x + 5, rect_prop[0] + 5, TEXT_SIZE, GRAY);
-      } else {
-        DrawText(inputs[i].content, x + 5, rect_prop[0] + 5, TEXT_SIZE, RED);
-      }
-
-      if(selected == i){
-        DrawRectangleLines(x, rect_prop[0], rect_prop[1], rect_prop[2], RED);
-        if(inputs[i].current_pos < inputs[i].char_limit && inputs[i].current_pos > 0){
-            if((frm_counter/20) % 2 == 0) DrawText("_", x + 8 + MeasureText(inputs[i].content, TEXT_SIZE), rect_prop[0] + 5, TEXT_SIZE, RED);
-        }
-      } else {
-        DrawRectangleLines(x, rect_prop[0], rect_prop[1], rect_prop[2], BLACK);
-      }
+      input_draw(&inputs[i], x, rect_prop[0], rect_prop[1], rect_prop[2], (selected == i));
     }
 
     DrawRectangle(10, 60, w - 20, h - 130 , DARKGRAY);
@@ -295,12 +255,5 @@ void display()
 
     // TODO: DrawLine and values each month on 6 last months
     // TODO: total en bas
-  EndTextureMode();
-
-  BeginDrawing();
-    ClearBackground(RAYWHITE);
-    BeginShaderMode(crt_shader);
-      DrawTextureRec(target.texture, (Rectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height }, (Vector2){ 0, 0 }, WHITE);
-    EndShaderMode();
   EndDrawing();
 }
