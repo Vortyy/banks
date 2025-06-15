@@ -25,6 +25,8 @@
 #define MAX_EXPENSES 100
 #define CSV_DELIMITER ","
 
+#define MAX_LV_ROW 1000
+
 #define VAMPIREDARK CLITERAL(Color){13, 2, 8, 255}
 
 #define SET_CENTERED(box_size, elemnt_size) \
@@ -36,50 +38,72 @@ void save_expense(Expense * exp);
 void load_storage(Account * account);
 
 typedef struct __listview_struct {
-  char ** tab;
   int x;
   int y;
+
   int width;
   int height;
 
-  int nb_column;
+  int nb_col;
   int nb_row;
-  int column_width;
-  int row_height;
+  int cell_w;
+  int cell_h;
+  
+  char * tab[MAX_LV_ROW];
 } Listview;
 
-Listview lv_create(int x, int y, int width, int height, int nb_column, int row_height)
+Listview lv_create(int x, int y, int width, int height, int nb_column, int cell_h)
 {
   return (Listview){
     .x = x,
     .y = y,
     .width = width,
     .height = height,
-    .nb_column = nb_column,
+    .nb_col = nb_column,
     .nb_row = 0,
-    .column_width = width/nb_column,
-    .row_height = row_height
+    .cell_w = width/nb_column,
+    .cell_h = cell_h
   };
 }
 
+/* it's a user burden to check that boundaries are respected */
 void lv_add_row(Listview * self, ...)
 {
-  // TODO
+  va_list ap;
+  va_start(ap, self);
+  int start_idx = self->nb_col * self->nb_row;
+
+  for(int i = 0; i < self->nb_col; i++){
+    char * value = va_arg(ap, char *);
+    printf("value: %s\n", value);
+    self->tab[start_idx + i] = value;
+  }
+  va_end(ap);
+  self->nb_row++;
 }
 
 void lv_draw(Listview * self)
 {
     DrawRectangle(self->x, self->y, self->width, self->height, DARKGRAY);
 
-    // Expenses list
-    // Draw content
+    // Content list
+    for(int i = 0; i < self->nb_row; i++){
+      for(int j = 0; j < self->nb_col; j++){
+        Color bg_color = (i%2 == 0) ? LIGHTGRAY : GRAY; 
+        DrawRectangle(self->x + (self->cell_w * j), self->y + (self->cell_h * i), self->cell_w, self->cell_h, bg_color);
+        // Mesure text
+        int idx = self->nb_col * i + j;
+        int text_size = MeasureText(self->tab[idx], TEXT_SIZE);
+        DrawText(self->tab[idx], SET_CENTERED(self->cell_w, text_size) + (self->cell_w * j), self->y + (self->cell_h * i) + 5, TEXT_SIZE, BLACK);//Author
+      }
+    }
 
     // Draw expenses list container
     DrawRectangleLines(self->x, self->y, self->width, self->height, BLACK);
 
     // Draw 3 lines + headers
-    for(int i = 1; i < self->nb_column; i++){
-      int line_x = self->column_width * i + self->x;
+    for(int i = 1; i < self->nb_col; i++){
+      int line_x = self->cell_w * i + self->x;
       Vector2 start = {.x = line_x, .y = self->y};
       Vector2 end = {.x = line_x, .y = self->y + self->height};
       DrawLineEx(start, end, 5.f, BLACK);
@@ -132,8 +156,8 @@ int store_inputs(){
 void reset_inputs(){
   for(int i = 0; i < INPUT_SIZE; i++){
     input_reset(&inputs[i]);
-    selected=0;
   }
+  selected=0;
 }
 
 void save_expense(Expense * exp){
@@ -174,7 +198,16 @@ void load_storage(Account * account){
   }
    
   fclose(fp);
-} 
+}
+
+void filltab(Listview * v){
+  for(int i = 0; i < account.exp_nb; i++){
+    Expense exp = account.list[i];
+    char * cost = arena_alloc(&a, sizeof(char) * 10);
+    cost = ; // check sformat to handle this case
+    lv_add_row(v, TextFormat("6.2f", exp.cost), exp.sdate, exp.author);
+  }
+}
 
 // Call once when the lib is opened
 void init()
@@ -186,7 +219,7 @@ void init()
   inputs[1] = input_def(3, "type", 170, 10);
   inputs[2] = input_def(10, "author", 330, 10);
 
-  listview = lv_create(10, 60, w - 20, h - 130, 3);
+  listview = lv_create(10, 60, w - 20, h - 130, 3, 30);
 
   account = (Account) {
     .list = (Expense *) arena_alloc(&a, sizeof(Expense) * MAX_EXPENSES),
@@ -200,6 +233,7 @@ void init()
   TraceLog(LOG_INFO, "%s: account solde %6.2f", LOG_PNAME, current_total);
     
   inputs[selected].state = IS_SELECTED;
+  filltab(&listview);
 }
 
 // Call once when the lib is closed
@@ -256,43 +290,6 @@ void display()
     }
 
     lv_draw(&listview);
-
-    /*
-    DrawRectangle(10, 60, w - 20, h - 130 , DARKGRAY);
-    int box_size = ((w - SCREEN_MARGIN * 2) / DISPLAYED_COLUMN);
-
-    int y = 65;
-    // Expenses list
-    for(int i = 0; i < account.exp_nb && y < h - 40; i++){
-      Expense * ptr_exp = account.list + ((account.exp_nb - 1) - i);
-
-      Color bg_color = (ptr_exp->type == INCOME) ? GREEN : RED;
-      DrawRectangle(10, 60 + 30 * i, w - 20,  30, bg_color);
-
-      // Text measurement
-      int author_size = MeasureText(ptr_exp->author, TEXT_SIZE);
-      int cost_size = MeasureText(TextFormat("%6.2f", ptr_exp->cost), TEXT_SIZE);
-      int date_size = MeasureText(ptr_exp->sdate, TEXT_SIZE);
-
-      // Write text
-      // TODO: check if box_size > measure text and write a substring ???
-      DrawText(ptr_exp->sdate, SET_CENTERED(box_size, date_size) + SCREEN_MARGIN, y, TEXT_SIZE, BLACK);//Date
-      DrawText(ptr_exp->author, SET_CENTERED(box_size, author_size) + (box_size + SCREEN_MARGIN), y, TEXT_SIZE, BLACK);//Author
-      DrawText(TextFormat("%6.2f", ptr_exp->cost), SET_CENTERED(box_size, cost_size) + (box_size * 2 + SCREEN_MARGIN), y, TEXT_SIZE, BLACK);//Cost
-
-      y += 30; // starting size need to depend on text size
-    }
-
-    // Draw expenses list container
-    DrawRectangleLines(10, 60, w - 20, h - 130 , BLACK);
-
-    // Draw 3 lines + headers
-    for(int i = 1; i < DISPLAYED_COLUMN; i++){
-      int x = box_size * i + 10;
-      Vector2 start = {.x = x, .y = 60};
-      Vector2 end = {.x = x, .y = h - 70};
-      DrawLineEx(start, end, 5.f, BLACK);
-    } */
 
     DrawRectangle(w - 160, h - 40, 150, 30, DARKGRAY);
     DrawRectangleLines(w - 160, h - 40, 150, 30, BLACK);
