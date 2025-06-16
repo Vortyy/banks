@@ -1,15 +1,20 @@
 #include "bank.h"
 
 void exp_init(Expense * exp, float cost, time_t exp_time, ExpenseType type, char * author){
+  char * buffer;
+
   exp->cost = cost;
   exp->type = type;
   exp->author = author;
-  exp->date = time(&exp_time);
+  exp->date = (exp_time != (time_t) NULL) ? exp_time : time(NULL);
+  
+  exp->s_cost = (char *) arena_alloc(&a, sizeof(char) * 16);
+  exp->s_date = (char *) arena_alloc(&a, sizeof(char) * 8);
 
   struct tm * pTime = localtime(&exp->date);
-  char * buffer = (char *) arena_alloc(&a, sizeof(char) * 8);
-  strftime(buffer, 8, "%d/%m", pTime);
-  exp->sdate = buffer;
+  strftime(exp->s_date, 8, "%d/%m", pTime);
+
+  sprintf(exp->s_cost, "%6.2f", cost);
 }
 
 ExpenseType get_type(char * type_string){

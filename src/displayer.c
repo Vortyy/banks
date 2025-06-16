@@ -26,6 +26,7 @@
 #define CSV_DELIMITER ","
 
 #define MAX_LV_ROW 1000
+#define LV_ORDER_REVERSER 0
 
 #define VAMPIREDARK CLITERAL(Color){13, 2, 8, 255}
 
@@ -37,6 +38,7 @@ int store_inputs();
 void save_expense(Expense * exp);
 void load_storage(Account * account);
 
+// Headers ???
 typedef struct __listview_struct {
   int x;
   int y;
@@ -67,6 +69,7 @@ Listview lv_create(int x, int y, int width, int height, int nb_column, int cell_
 }
 
 /* it's a user burden to check that boundaries are respected */
+/* arg are displayed from left to right */
 void lv_add_row(Listview * self, ...)
 {
   va_list ap;
@@ -75,39 +78,56 @@ void lv_add_row(Listview * self, ...)
 
   for(int i = 0; i < self->nb_col; i++){
     char * value = va_arg(ap, char *);
-    printf("value: %s\n", value);
     self->tab[start_idx + i] = value;
   }
+
   va_end(ap);
   self->nb_row++;
 }
 
-void lv_draw(Listview * self)
+// TODO: order
+void lv_draw(Listview * self, int starting_row)
 {
-    DrawRectangle(self->x, self->y, self->width, self->height, DARKGRAY);
+  int i = starting_row >= self->nb_row ? self->nb_row - 1 : starting_row;
 
-    // Content list
-    for(int i = 0; i < self->nb_row; i++){
-      for(int j = 0; j < self->nb_col; j++){
-        Color bg_color = (i%2 == 0) ? LIGHTGRAY : GRAY; 
-        DrawRectangle(self->x + (self->cell_w * j), self->y + (self->cell_h * i), self->cell_w, self->cell_h, bg_color);
-        // Mesure text
-        int idx = self->nb_col * i + j;
-        int text_size = MeasureText(self->tab[idx], TEXT_SIZE);
-        DrawText(self->tab[idx], SET_CENTERED(self->cell_w, text_size) + (self->cell_w * j), self->y + (self->cell_h * i) + 5, TEXT_SIZE, BLACK);//Author
-      }
+  BeginScissorMode(self->x, self->y, self->width, self->height);
+  DrawRectangle(self->x, self->y, self->width, self->height, DARKGRAY);
+
+  int printed_rows = 0;
+  // Content list
+  for(; (i < self->nb_row) && (printed_rows * self->cell_h < self->height); i++){
+    for(int j = 0; j < self->nb_col; j++){
+      Color bg_color = (i%2 == 0) ? LIGHTGRAY : GRAY; 
+      DrawRectangle(self->x + (self->cell_w * j), self->y + (self->cell_h * printed_rows), self->cell_w, self->cell_h, bg_color);
+      // Mesure text
+      int idx = self->nb_col * i + j;
+      int text_size = MeasureText(self->tab[idx], TEXT_SIZE);
+      DrawText(self->tab[idx], self-> x + SET_CENTERED(self->cell_w, text_size) + (self->cell_w * j), self->y + (self->cell_h * printed_rows) + 5, TEXT_SIZE, BLACK);//Author
+      //DrawRectangle(self->x + SET_CENTERED(self->cell_w, text_size) + (self->cell_w * j), self->y + (self->cell_h * printed_rows) + 5, text_size, 5 ,RAYWHITE);//Author
+      //DrawRectangle(self->x + self->cell_w * j, self->y + (self->cell_h * printed_rows), text_size, 5 , BLUE);//Author
     }
 
-    // Draw expenses list container
-    DrawRectangleLines(self->x, self->y, self->width, self->height, BLACK);
+    printed_rows++;
+  }
 
-    // Draw 3 lines + headers
-    for(int i = 1; i < self->nb_col; i++){
-      int line_x = self->cell_w * i + self->x;
-      Vector2 start = {.x = line_x, .y = self->y};
-      Vector2 end = {.x = line_x, .y = self->y + self->height};
-      DrawLineEx(start, end, 5.f, BLACK);
-    }
+  // Draw expenses list container
+  DrawRectangleLines(self->x, self->y, self->width, self->height, BLACK);
+
+  // Draw 3 lines + headers
+  for(int i = 1; i < self->nb_col; i++){
+    int line_x = self->cell_w * i + self->x;
+    DrawLineEx((Vector2){line_x, self->y}, (Vector2){line_x, self->y + self->height}, 1.f, BLACK);
+  }
+
+  if(i != self->nb_row)
+    if((frm_counter / 30) % 2 == 0)
+      DrawTriangle(
+        (Vector2) {self->x + self->width/2 - 10, self->y + self->height - 20}, 
+        (Vector2) {self->x + self->width/2, self->y + self->height - 5},
+        (Vector2) {self->x + self->width/2 + 10, self->y + self->height - 20}, 
+        RAYWHITE);
+
+  EndScissorMode();
 }
 
 /* Window && Globals variables */
@@ -127,6 +147,7 @@ float current_total = 0.0f;
 
 int selected = 0;
 int rect_prop[3]  = {10, 150, 30};
+int lv_row = 0;
 
 /* Utils */
 int store_inputs(){
@@ -146,9 +167,10 @@ int store_inputs(){
 
   account_add_exp(&account, cost, (time_t) 0, type, author);
 
-  Expense test;
-  exp_init_now(&test,  cost, type, author);
-  save_expense(&test);
+  Expense * exp_added = account.list + account.exp_nb - 1;
+  save_expense(exp_added);
+
+  lv_add_row(&listview, exp_added->s_date, exp_added->author, exp_added->s_cost);
   
   return 0;
 }
@@ -203,9 +225,7 @@ void load_storage(Account * account){
 void filltab(Listview * v){
   for(int i = 0; i < account.exp_nb; i++){
     Expense exp = account.list[i];
-    char * cost = arena_alloc(&a, sizeof(char) * 10);
-    cost = ; // check sformat to handle this case
-    lv_add_row(v, TextFormat("6.2f", exp.cost), exp.sdate, exp.author);
+    lv_add_row(v, exp.s_date, exp.author, exp.s_cost);
   }
 }
 
@@ -260,6 +280,16 @@ void display()
     inputs[selected].state = IS_SELECTED;
   }
 
+  if(IsKeyPressed(KEY_DOWN) || (IsKeyDown(KEY_DOWN) && IsKeyDown(KEY_LEFT_CONTROL))){
+    lv_row++;
+    if(lv_row > account.exp_nb) lv_row = account.exp_nb - 1;
+  }
+
+  if(IsKeyPressed(KEY_UP) || (IsKeyDown(KEY_UP) && IsKeyDown(KEY_LEFT_CONTROL))){
+    lv_row--;
+    if(lv_row <= 0) lv_row = 0;
+  }
+
   if(IsKeyPressed(KEY_BACKSPACE)){
     input_del_char(&inputs[selected]);
   }
@@ -285,11 +315,12 @@ void display()
   // DRAWING
   BeginDrawing();
     ClearBackground(VAMPIREDARK);
+
     for(int i = 0; i < INPUT_SIZE; i++){
       input_draw(&inputs[i]);
     }
 
-    lv_draw(&listview);
+    lv_draw(&listview, lv_row);
 
     DrawRectangle(w - 160, h - 40, 150, 30, DARKGRAY);
     DrawRectangleLines(w - 160, h - 40, 150, 30, BLACK);

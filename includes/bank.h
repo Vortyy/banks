@@ -17,8 +17,10 @@ typedef struct __expense_struct {
   float cost;
   ExpenseType type;
   time_t date;
-  char * sdate;
   char * author;
+
+  char * s_cost;
+  char * s_date;
 } Expense;
 
 
