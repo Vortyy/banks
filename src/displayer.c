@@ -38,7 +38,6 @@ int store_inputs();
 void save_expense(Expense * exp);
 void load_storage(Account * account);
 
-// Headers ???
 typedef struct __listview_struct {
   int x;
   int y;
@@ -66,6 +65,13 @@ Listview lv_create(int x, int y, int width, int height, int nb_column, int cell_
     .cell_w = width/nb_column,
     .cell_h = cell_h
   };
+}
+
+void lv_set_size(Listview * self, int width, int height){
+  self->width = width;
+  self->height = height;
+
+  self->cell_w = width / (self->nb_col);
 }
 
 /* it's a user burden to check that boundaries are respected */
@@ -267,8 +273,14 @@ void clear()
 void display()
 {
   // UPDATE
-  w = GetScreenWidth();
-  h = GetScreenHeight();
+  int curr_w = GetScreenWidth();
+  int curr_h = GetScreenHeight();
+
+  if(curr_w != w || curr_h != h){
+    w = curr_w;
+    h = curr_h;
+    lv_set_size(&listview, w - 20, h - 130);
+  }
 
   // Put a limit to add footer and + moving screen fucktin
 
