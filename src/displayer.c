@@ -3,6 +3,7 @@
 #include <string.h>
 #include <raylib.h>
 #include <ctype.h>
+#include <sys/stat.h>
 
 #include "bank.h" // Expenses && Account
 #include "input.h" // Custom Input
@@ -20,9 +21,12 @@
 #define TEXT_SIZE 20
 #define FRM_COUNTER_MAX_VALUE 2000000
 #define LOG_PNAME "MY_DISPLAYER"
-#define PATH_STORAGE "./store.csv"
 
-#define MAX_EXPENSES 100
+#define PATH_STORAGE "./storage"
+#define PATH_MAX_SIZE 100
+#define FILENAME_MAX_SIZE 12
+
+#define MAX_EXPENSES 1000
 #define CSV_DELIMITER ","
 
 #define MAX_LV_ROW 1000
@@ -94,7 +98,7 @@ void lv_add_row(Listview * self, ...)
 // TODO: order
 void lv_draw(Listview * self, int starting_row)
 {
-  int i = starting_row >= self->nb_row ? self->nb_row - 1 : starting_row;
+  int i = (starting_row >= self->nb_row && self->nb_row != 0) ? self->nb_row - 1 : starting_row;
 
   BeginScissorMode(self->x, self->y, self->width, self->height);
   DrawRectangle(self->x, self->y, self->width, self->height, DARKGRAY);
@@ -155,6 +159,11 @@ int selected = 0;
 int rect_prop[3]  = {10, 150, 30};
 int lv_row = 0;
 
+char displayed_month[12];
+
+char filename[FILENAME_MAX_SIZE];
+char path[PATH_MAX_SIZE];
+
 /* Utils */
 int store_inputs(){
   /* if an inputs is empty */
@@ -191,26 +200,45 @@ void reset_inputs(){
 void save_expense(Expense * exp){
   FILE * fp;
 
-  if((fp = fopen(PATH_STORAGE, "a+")) == NULL){
-    TraceLog(LOG_ERROR, "%s: unable to open filepath %s", LOG_PNAME, PATH_STORAGE);
+  struct tm * pTime = localtime(&exp->date);
+  strftime(filename, FILENAME_MAX_SIZE, "%m_%Y.csv", pTime);
+
+  path[0] = '\0';
+  strcat(path, PATH_STORAGE);
+  strcat(path, "/");
+  strcat(path, filename);
+
+  if((fp = fopen(path, "a+")) == NULL){
+    TraceLog(LOG_ERROR, "%s: unable to open filepath %s", LOG_PNAME, path);
   }
 
   // date, cost, author, type
-  int ret = fprintf(fp, "%ld,%f,%s,%d\n", exp->date, exp->cost, exp->author, exp->type);
+  int ret = fprintf(fp, "%ld,%6.2f,%s,%d\n", exp->date, exp->cost, exp->author, exp->type);
 
   fclose(fp);
 } 
 
+// Last month
 void load_storage(Account * account){ 
   float cost;
   int type;
   time_t date;
   char * author;
 
+  time_t current_time = time(NULL);
+  struct tm * pTime = localtime(&current_time);
+  strftime(displayed_month, 12, "< %m-%Y >", pTime);
+  strftime(filename, FILENAME_MAX_SIZE, "%m_%Y.csv", pTime);
+
+  path[0] = '\0';
+  strcat(path, PATH_STORAGE);
+  strcat(path, "/");
+  strcat(path, filename);
+
   FILE * fp;
 
-  if((fp = fopen(PATH_STORAGE, "r")) == NULL){
-    TraceLog(LOG_ERROR, "%s: unable to open filepath %s", LOG_PNAME, PATH_STORAGE);
+  if((fp = fopen(path, "r")) == NULL){
+    TraceLog(LOG_ERROR, "%s: unable to open filepath %s", LOG_PNAME, path);
     return;
   }
 
@@ -260,6 +288,7 @@ void init()
     
   inputs[selected].state = IS_SELECTED;
   filltab(&listview);
+  mkdir(PATH_STORAGE, 0755);
 }
 
 // Call once when the lib is closed
@@ -332,6 +361,8 @@ void display()
       input_draw(&inputs[i]);
     }
 
+    DrawText(displayed_month, w - 155, 15, TEXT_SIZE, RAYWHITE);
+
     lv_draw(&listview, lv_row);
 
     DrawRectangle(w - 160, h - 40, 150, 30, DARKGRAY);
@@ -339,6 +370,5 @@ void display()
     DrawText(TextFormat("%6.2f", current_total), w - 155, h - 35, TEXT_SIZE, BLACK); 
 
     // TODO: DrawLine and values each month on 6 last months
-    // TODO: total en bas
   EndDrawing();
 }
