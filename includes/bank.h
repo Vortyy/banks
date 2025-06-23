@@ -23,7 +23,6 @@ typedef struct __expense_struct {
   char * s_date;
 } Expense;
 
-
 typedef struct __account_struct {
   Expense * list;
   char * name;
@@ -33,6 +32,7 @@ typedef struct __account_struct {
 
 void exp_init(Expense * exp, float cost, time_t exp_time, ExpenseType type, char * author);
 ExpenseType get_type(char * type_string);
+float get_type_sign(ExpenseType type);
 
 #define exp_init_now(exp, cost, type, author) exp_init(exp, cost, (time_t) NULL, type, author)
 #define exp_print(exp) TraceLog(LOG_INFO, "%s: exp.cost: %d, exp.author: %s, exp.date %s", LOG_PNAME, exp->cost, exp->author, exp->sdate)

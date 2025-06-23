@@ -8,6 +8,7 @@
 #include "bank.h" // Expenses && Account
 #include "input.h" // Custom Input
 
+// TODO: Make sorting
 // TODO: Maybe created a shared context to save data during runner exec
 // Late binding can be fun -> https://stackoverflow.com/questions/32347910/oop-in-c-implicitly-pass-self-as-parameter
 
@@ -54,10 +55,13 @@ typedef struct __listview_struct {
   int cell_w;
   int cell_h;
   
+  char ** headers;
   char * tab[MAX_LV_ROW];
 } Listview;
 
-Listview lv_create(int x, int y, int width, int height, int nb_column, int cell_h)
+#define lv_noh_create(x, y, width, height, nb_col, cell_h) lv_create(x, y, width, height, nb_col, cell_h, NULL)
+
+Listview lv_create(int x, int y, int width, int height, int nb_column, int cell_h, char ** headers)
 {
   return (Listview){
     .x = x,
@@ -67,7 +71,8 @@ Listview lv_create(int x, int y, int width, int height, int nb_column, int cell_
     .nb_col = nb_column,
     .nb_row = 0,
     .cell_w = width/nb_column,
-    .cell_h = cell_h
+    .cell_h = cell_h,
+    .headers = headers
   };
 }
 
@@ -95,15 +100,28 @@ void lv_add_row(Listview * self, ...)
   self->nb_row++;
 }
 
+void lv_clear(Listview * self){
+  self->nb_row = 0;
+}
+
 // TODO: order
 void lv_draw(Listview * self, int starting_row)
 {
   int i = (starting_row >= self->nb_row && self->nb_row != 0) ? self->nb_row - 1 : starting_row;
+  int printed_rows = 0;
 
-  BeginScissorMode(self->x, self->y, self->width, self->height);
+  // Draw headers
+  if(self->headers != NULL){
+    for(int h = 0; h < self->nb_col; h++){
+      int text_size = MeasureText(self->headers[h], TEXT_SIZE);
+      DrawText(self->headers[h], self-> x + SET_CENTERED(self->cell_w, text_size) + (self->cell_w * h), self->y + 5, TEXT_SIZE, RAYWHITE);//Author
+    }
+    printed_rows++;
+  }
+
+  BeginScissorMode(self->x, self->y + (self->cell_h * printed_rows), self->width, self->height);
   DrawRectangle(self->x, self->y, self->width, self->height, DARKGRAY);
 
-  int printed_rows = 0;
   // Content list
   for(; (i < self->nb_row) && (printed_rows * self->cell_h < self->height); i++){
     for(int j = 0; j < self->nb_col; j++){
@@ -164,6 +182,8 @@ char displayed_month[12];
 char filename[FILENAME_MAX_SIZE];
 char path[PATH_MAX_SIZE];
 
+char * headers[] = {"Date", "Author", "Cost"};
+
 /* Utils */
 int store_inputs(){
   /* if an inputs is empty */
@@ -194,7 +214,10 @@ void reset_inputs(){
   for(int i = 0; i < INPUT_SIZE; i++){
     input_reset(&inputs[i]);
   }
+  
+  inputs[selected].state = 0;
   selected=0;
+  inputs[selected].state = IS_SELECTED;
 }
 
 void save_expense(Expense * exp){
@@ -273,7 +296,8 @@ void init()
   inputs[1] = input_def(3, "type", 170, 10);
   inputs[2] = input_def(10, "author", 330, 10);
 
-  listview = lv_create(10, 60, w - 20, h - 130, 3, 30);
+  TraceLog(LOG_INFO, "size of: %d", sizeof(headers) / sizeof(headers[0]));
+  listview = lv_create(10, 60, w - 20, h - 130, 3, 30, headers);
 
   account = (Account) {
     .list = (Expense *) arena_alloc(&a, sizeof(Expense) * MAX_EXPENSES),
@@ -367,7 +391,7 @@ void display()
 
     DrawRectangle(w - 160, h - 40, 150, 30, DARKGRAY);
     DrawRectangleLines(w - 160, h - 40, 150, 30, BLACK);
-    DrawText(TextFormat("%6.2f", current_total), w - 155, h - 35, TEXT_SIZE, BLACK); 
+    DrawText(TextFormat("%.2f", current_total), w - 154, h - 35, TEXT_SIZE, BLACK); 
 
     // TODO: DrawLine and values each month on 6 last months
   EndDrawing();

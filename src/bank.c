@@ -8,13 +8,13 @@ void exp_init(Expense * exp, float cost, time_t exp_time, ExpenseType type, char
   exp->author = author;
   exp->date = (exp_time != (time_t) NULL) ? exp_time : time(NULL);
   
-  exp->s_cost = (char *) arena_alloc(&a, sizeof(char) * 16);
+  exp->s_cost = (char *) arena_alloc(&a, sizeof(char) * 9);
   exp->s_date = (char *) arena_alloc(&a, sizeof(char) * 8);
 
   struct tm * pTime = localtime(&exp->date);
   strftime(exp->s_date, 8, "%d/%m", pTime);
 
-  sprintf(exp->s_cost, "%6.2f", cost);
+  sprintf(exp->s_cost, "%.2f", cost * get_type_sign(type));
 }
 
 ExpenseType get_type(char * type_string){
@@ -27,6 +27,10 @@ ExpenseType get_type(char * type_string){
   }
 
   return ERROR;
+}
+
+float get_type_sign(ExpenseType type){
+  return (type == INCOME) ? 1.f : -1.f;
 }
 
 void account_add_exp(Account * account, float cost, time_t time, ExpenseType type, char * author){
