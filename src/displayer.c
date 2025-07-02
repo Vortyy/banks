@@ -7,6 +7,7 @@
 
 #include "bank.h" // Expenses && Account
 #include "input.h" // Custom Input
+#include "listview.h" // Custom Listview
 
 // TODO: Make sorting
 // TODO: Maybe created a shared context to save data during runner exec
@@ -23,15 +24,11 @@
 #define FRM_COUNTER_MAX_VALUE 2000000
 #define LOG_PNAME "MY_DISPLAYER"
 
-#define PATH_STORAGE "./storage"
+#define PATH_STORAGE "./storage/%m_%Y.csv"
 #define PATH_MAX_SIZE 100
-#define FILENAME_MAX_SIZE 12
 
 #define MAX_EXPENSES 1000
 #define CSV_DELIMITER ","
-
-#define MAX_LV_ROW 1000
-#define LV_ORDER_REVERSER 0
 
 #define VAMPIREDARK CLITERAL(Color){13, 2, 8, 255}
 
@@ -42,127 +39,13 @@ void reset_inputs();
 int store_inputs();
 void save_expense(Expense * exp);
 void load_storage(Account * account);
-
-typedef struct __listview_struct {
-  int x;
-  int y;
-
-  int width;
-  int height;
-
-  int nb_col;
-  int nb_row;
-  int cell_w;
-  int cell_h;
-  
-  char ** headers;
-  char * tab[MAX_LV_ROW];
-} Listview;
-
-#define lv_noh_create(x, y, width, height, nb_col, cell_h) lv_create(x, y, width, height, nb_col, cell_h, NULL)
-
-Listview lv_create(int x, int y, int width, int height, int nb_column, int cell_h, char ** headers)
-{
-  return (Listview){
-    .x = x,
-    .y = y,
-    .width = width,
-    .height = height,
-    .nb_col = nb_column,
-    .nb_row = 0,
-    .cell_w = width/nb_column,
-    .cell_h = cell_h,
-    .headers = headers
-  };
-}
-
-void lv_set_size(Listview * self, int width, int height){
-  self->width = width;
-  self->height = height;
-
-  self->cell_w = width / (self->nb_col);
-}
-
-/* it's a user burden to check that boundaries are respected */
-/* arg are displayed from left to right */
-void lv_add_row(Listview * self, ...)
-{
-  va_list ap;
-  va_start(ap, self);
-  int start_idx = self->nb_col * self->nb_row;
-
-  for(int i = 0; i < self->nb_col; i++){
-    char * value = va_arg(ap, char *);
-    self->tab[start_idx + i] = value;
-  }
-
-  va_end(ap);
-  self->nb_row++;
-}
-
-void lv_clear(Listview * self){
-  self->nb_row = 0;
-}
-
-// TODO: order
-void lv_draw(Listview * self, int starting_row)
-{
-  int i = (starting_row >= self->nb_row && self->nb_row != 0) ? self->nb_row - 1 : starting_row;
-  int printed_rows = 0;
-
-  // Draw headers
-  if(self->headers != NULL){
-    for(int h = 0; h < self->nb_col; h++){
-      int text_size = MeasureText(self->headers[h], TEXT_SIZE);
-      DrawText(self->headers[h], self-> x + SET_CENTERED(self->cell_w, text_size) + (self->cell_w * h), self->y + 5, TEXT_SIZE, RAYWHITE);//Author
-    }
-    printed_rows++;
-  }
-
-  BeginScissorMode(self->x, self->y + (self->cell_h * printed_rows), self->width, self->height);
-  DrawRectangle(self->x, self->y, self->width, self->height, DARKGRAY);
-
-  // Content list
-  for(; (i < self->nb_row) && (printed_rows * self->cell_h < self->height); i++){
-    for(int j = 0; j < self->nb_col; j++){
-      Color bg_color = (i%2 == 0) ? LIGHTGRAY : GRAY; 
-      DrawRectangle(self->x + (self->cell_w * j), self->y + (self->cell_h * printed_rows), self->cell_w, self->cell_h, bg_color);
-      // Mesure text
-      int idx = self->nb_col * i + j;
-      int text_size = MeasureText(self->tab[idx], TEXT_SIZE);
-      DrawText(self->tab[idx], self-> x + SET_CENTERED(self->cell_w, text_size) + (self->cell_w * j), self->y + (self->cell_h * printed_rows) + 5, TEXT_SIZE, BLACK);//Author
-      //DrawRectangle(self->x + SET_CENTERED(self->cell_w, text_size) + (self->cell_w * j), self->y + (self->cell_h * printed_rows) + 5, text_size, 5 ,RAYWHITE);//Author
-      //DrawRectangle(self->x + self->cell_w * j, self->y + (self->cell_h * printed_rows), text_size, 5 , BLUE);//Author
-    }
-
-    printed_rows++;
-  }
-
-  // Draw expenses list container
-  DrawRectangleLines(self->x, self->y, self->width, self->height, BLACK);
-
-  // Draw 3 lines + headers
-  for(int i = 1; i < self->nb_col; i++){
-    int line_x = self->cell_w * i + self->x;
-    DrawLineEx((Vector2){line_x, self->y}, (Vector2){line_x, self->y + self->height}, 1.f, BLACK);
-  }
-
-  if(i != self->nb_row)
-    if((frm_counter / 30) % 2 == 0)
-      DrawTriangle(
-        (Vector2) {self->x + self->width/2 - 10, self->y + self->height - 20}, 
-        (Vector2) {self->x + self->width/2, self->y + self->height - 5},
-        (Vector2) {self->x + self->width/2 + 10, self->y + self->height - 20}, 
-        RAYWHITE);
-
-  EndScissorMode();
-}
-
-/* Window && Globals variables */
+void read_file(FILE * fp, Account * account);
+void filltab(Listview * v);
 
 /* Arena allocator declaration */
 Arena a = {0};
 
+/* Window && Globals variables */
 int frm_counter = 0;
 int w = 0;
 int h = 0;
@@ -178,8 +61,6 @@ int rect_prop[3]  = {10, 150, 30};
 int lv_row = 0;
 
 char displayed_month[12];
-
-char filename[FILENAME_MAX_SIZE];
 char path[PATH_MAX_SIZE];
 
 char * headers[] = {"Date", "Author", "Cost"};
@@ -206,6 +87,7 @@ int store_inputs(){
   save_expense(exp_added);
 
   lv_add_row(&listview, exp_added->s_date, exp_added->author, exp_added->s_cost);
+  current_total += get_type_sign(exp_added->type) * exp_added->cost;
   
   return 0;
 }
@@ -224,12 +106,7 @@ void save_expense(Expense * exp){
   FILE * fp;
 
   struct tm * pTime = localtime(&exp->date);
-  strftime(filename, FILENAME_MAX_SIZE, "%m_%Y.csv", pTime);
-
-  path[0] = '\0';
-  strcat(path, PATH_STORAGE);
-  strcat(path, "/");
-  strcat(path, filename);
+  strftime(path, PATH_MAX_SIZE, PATH_STORAGE, pTime);
 
   if((fp = fopen(path, "a+")) == NULL){
     TraceLog(LOG_ERROR, "%s: unable to open filepath %s", LOG_PNAME, path);
@@ -241,29 +118,11 @@ void save_expense(Expense * exp){
   fclose(fp);
 } 
 
-// Last month
-void load_storage(Account * account){ 
+void read_file(FILE * fp, Account * account){
   float cost;
   int type;
   time_t date;
   char * author;
-
-  time_t current_time = time(NULL);
-  struct tm * pTime = localtime(&current_time);
-  strftime(displayed_month, 12, "< %m-%Y >", pTime);
-  strftime(filename, FILENAME_MAX_SIZE, "%m_%Y.csv", pTime);
-
-  path[0] = '\0';
-  strcat(path, PATH_STORAGE);
-  strcat(path, "/");
-  strcat(path, filename);
-
-  FILE * fp;
-
-  if((fp = fopen(path, "r")) == NULL){
-    TraceLog(LOG_ERROR, "%s: unable to open filepath %s", LOG_PNAME, path);
-    return;
-  }
 
   char buffer[BUFSIZ];
   // date, cost, author, type
@@ -275,7 +134,47 @@ void load_storage(Account * account){
 
     account_add_exp(account, cost, date, type, author);
   }
-   
+}
+
+void load_storage(Account * account){ 
+  time_t current_time = time(NULL);
+  struct tm * pTime = localtime(&current_time);
+  strftime(displayed_month, 12, "< %m-%Y >", pTime);
+  strftime(path, PATH_MAX_SIZE, PATH_STORAGE, pTime);
+
+  FILE * fp;
+
+  if((fp = fopen(path, "r")) == NULL){
+    TraceLog(LOG_ERROR, "%s: unable to open filepath %s", LOG_PNAME, path);
+
+    pTime->tm_mon = (pTime->tm_mon - 1) % 12;
+    if(pTime->tm_mon == 11) // previous year
+      pTime->tm_year--;
+
+    strftime(path, PATH_MAX_SIZE, PATH_STORAGE, pTime);
+    fp = fopen(path, "r");
+    if(fp == NULL){
+      TraceLog(LOG_ERROR, "%s: unable to open filepath %s", LOG_PNAME, path);
+    }
+
+    read_file(fp, account);
+
+    float last_month = account_get_total(account);
+
+    Expense exp;
+    exp_init_now(&exp, last_month, INCOME, "last_month");
+    save_expense(&exp);
+
+    fclose(fp);
+
+    // Try to open it again
+    struct tm * pTimeCopy = localtime(&current_time);
+    account->exp_nb = 0;
+    strftime(path, PATH_MAX_SIZE, PATH_STORAGE, pTimeCopy);
+    fp = fopen(path, "r");
+  }
+
+  read_file(fp, account);
   fclose(fp);
 }
 

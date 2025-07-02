@@ -1,7 +1,7 @@
 CC = clang
 CFLAGS = all
 LIBS = -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
-SRC_FILES = src/bank.c src/displayer.c src/input.c
+SRC_FILES = src/bank.c src/displayer.c src/input.c src/listview.c
 
 # Generates shared libs for hot reloading
 all:
