@@ -155,6 +155,7 @@ void load_storage(Account * account){
     fp = fopen(path, "r");
     if(fp == NULL){
       TraceLog(LOG_ERROR, "%s: unable to open filepath %s", LOG_PNAME, path);
+      return;
     }
 
     read_file(fp, account);
