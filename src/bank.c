@@ -1,10 +1,8 @@
 #include "bank.h"
 
-void exp_init(Expense * exp, int number_part, int fractional_part, time_t exp_time, ExpenseType type, char * author){
+void exp_init(Expense * exp, Currency currency, time_t exp_time, ExpenseType type, char * author){
   char * buffer;
 
-  exp->number_part = number_part;
-  exp->fractional_part = fractional_part;
   exp->type = type;
   exp->author = author;
   exp->date = (exp_time != (time_t) NULL) ? exp_time : time(NULL);
@@ -28,23 +26,38 @@ ExpenseType get_type(char * type_string){
   return ERROR;
 }
 
-void account_add_exp(Account * account, int number_part, int fractional_part, time_t time, ExpenseType type, char * author){
+void account_add_exp(Account * account, Currency currency, time_t time, ExpenseType type, char * author){
   if(account->exp_nb < account->max_exp_nb){
     Expense * exp = account->list + account->exp_nb;
     if(time == 0)
-      exp_init_now(exp, number_part, fractional_part, type, author);
+      exp_init_now(exp, currency, type, author);
     else
-      exp_init(exp, number_part, fractional_part, time, type, author);
+      exp_init(exp, currency, time, type, author);
     account->exp_nb++;
   }
 }
 
-float account_get_total(Account * account)
+Currency account_get_total(Account * account)
 {
-  float value = 0.0f;
+  int number_part, fractional_part;
   for(int i = 0; i < account->exp_nb; i++){
     Expense * ptr_exp = account->list + i;
-    //value += (ptr_exp->type == INCOME) * ptr_exp->cost - (ptr_exp->type == OUTCOME) * ptr_exp->cost; // branchless programming
   }
-  return value;
+  return (Currency) {};
+}
+
+void add(Currency * src, Currency to_add)
+{
+  src->number += to_add.number;
+  src->fraction += to_add.number;
+
+  while(src->fraction > 100) {
+    src->number++;
+    src->fraction -= 100;
+  }
+}
+
+void substract(Currency * src, Currency to_sub)
+{
+  printf("not implemented yet...\n");
 }
