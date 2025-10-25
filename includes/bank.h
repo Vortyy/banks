@@ -8,6 +8,8 @@
 extern Arena a; // WARNING: Declared inside displayer.c
 
 #define EXPENSE_DATE_SIZE 8
+#define MAX_CURRENCY_N_SIZE 7
+#define MAX_CURRENCY_F_SIZE 2
 
 typedef enum __expense_type {
   INCOME,
@@ -45,6 +47,8 @@ ExpenseType get_type(char * type_string);
 
 void account_add_exp(Account * account, Currency currency, time_t time, ExpenseType type, char * author);
 Currency account_get_total(Account * account);
+
+#define print_currency(c) printf("%6d.%02d\n", c.number, c.fraction)
 
 void add(Currency * src, Currency to_add);
 void sub(Currency * src, Currency to_sub);

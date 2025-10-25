@@ -49,9 +49,9 @@ Currency account_get_total(Account * account)
 void add(Currency * src, Currency to_add)
 {
   src->number += to_add.number;
-  src->fraction += to_add.number;
+  src->fraction += to_add.fraction;
 
-  while(src->fraction > 100) {
+  while(src->fraction >= 100) {
     src->number++;
     src->fraction -= 100;
   }
@@ -59,5 +59,6 @@ void add(Currency * src, Currency to_add)
 
 void substract(Currency * src, Currency to_sub)
 {
+
   printf("not implemented yet...\n");
 }
