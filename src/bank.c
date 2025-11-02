@@ -3,6 +3,7 @@
 void exp_init(Expense * exp, Currency currency, time_t exp_time, ExpenseType type, char * author){
   char * buffer;
 
+  exp->currency = currency;
   exp->type = type;
   exp->author = author;
   exp->date = (exp_time != (time_t) NULL) ? exp_time : time(NULL);
@@ -39,11 +40,18 @@ void account_add_exp(Account * account, Currency currency, time_t time, ExpenseT
 
 Currency account_get_total(Account * account)
 {
-  int number_part, fractional_part;
+  int number_part = 0, fraction_part = 0;
+
   for(int i = 0; i < account->exp_nb; i++){
     Expense * ptr_exp = account->list + i;
+    number_part += (INCOME == ptr_exp->type) * (ptr_exp->currency.number) - (OUTCOME == ptr_exp->type) * (ptr_exp->currency.number);
+    fraction_part += (INCOME == ptr_exp->type) * (ptr_exp->currency.fraction) - (OUTCOME == ptr_exp->type) * (ptr_exp->currency.fraction);
   }
-  return (Currency) {};
+
+  return (Currency) {
+    .number = number_part,
+    .fraction = fraction_part
+  };
 }
 
 void add(Currency * src, Currency to_add)
@@ -57,8 +65,13 @@ void add(Currency * src, Currency to_add)
   }
 }
 
-void substract(Currency * src, Currency to_sub)
+void sub(Currency * src, Currency to_sub)
 {
+  src->number -= to_sub.number;
+  src->fraction -= to_sub.fraction;
 
-  printf("not implemented yet...\n");
+  while(src->fraction < 0) {
+    src->number--;
+    src->fraction += 100;
+  }
 }
