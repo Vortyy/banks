@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
+
+#define _XOPEN_SOURCE
 #include <time.h>
 
 #define MAX_EXPENSES 1000
@@ -16,8 +18,47 @@
 Arena a = { 0 };
 char path[PATH_MAX_SIZE]; 
 
-// TODO: just clean print each month
-// TODO: think about command to add them easily
+void exit_clean(){
+  arena_free(&a);
+}
+
+int parse_date(char * arg, struct tm * date){
+  char buffer[2];
+  int i = 0;
+
+  // day
+  while(*arg != '/' && i < 2){
+    buffer[i++] = *arg++;
+  }
+
+  if(*arg != '/')
+    return 1;
+  arg++;
+
+  int day = atoi(buffer);
+  if(day <= 0 || day > 31)
+    return 1;
+
+  // month
+  buffer[0] = '\0';
+  buffer[1] = '\0';
+  i = 0;
+  while(*arg != '\0' && i < 2)
+    buffer[i++] = *arg++;
+
+  if(*arg != '\0')
+    return 1;
+
+  int month = atoi(buffer);
+  if(month <= 0 || month > 12)
+    return 1;
+
+  // set values
+  date->tm_mday = day;
+  date->tm_mon = month - 1; // [0, 11]
+
+  return 0;
+}
 
 Currency read_currency(char * arg){
   char number[MAX_CURRENCY_N_SIZE + 1];
@@ -48,7 +89,7 @@ Currency read_currency(char * arg){
   };
 }
 
-void save_expense(Expense * exp){
+int save_expense(Expense * exp){
   FILE * fp;
 
   struct tm * pTime = localtime(&exp->date);
@@ -56,50 +97,80 @@ void save_expense(Expense * exp){
 
   if((fp = fopen(path, "a+")) == NULL){
     printf("ERROR: Unable to open '%s'\n", path);
+    return 1;
   }
 
   // date, cost, author, type
   int ret = fprintf(fp, "%ld,%d.%02d,%s,%d\n", exp->date, exp->currency.number, exp->currency.fraction, exp->author, exp->type);
 
   fclose(fp);
+  return 0;
 } 
 
 void print_help(){
   printf("Help: \n");
-  printf("  bank add: \n");
+  printf("  add: to add an expense\n");
 }
 
-// TODO: Add expense + income + add monthly recaps with stats
-int main(int argc, char *argv[]){
-  if(argc <= 1) {
-    print_help();
-    return 1;
-  }
-
-  char * current_arg = *++argv;
-  if(!strcmp("--help", current_arg) || !strcmp("-h", current_arg)){
-    print_help();
-    return 1;
-  }
-
-  // term -e (+/-)154.59 "pizzas with my friends"
-  if(strcmp("add", *argv) == 0 && argc == 4){
-    argv++;
+// Add an expense
+// bank add (+/-)154.59 "pizzas with my friends" -d 19/10
+int cmd_add(int argc, char *argv[]){
     Expense exp;
+    int opt, ret;
+    time_t date = time(NULL);
 
+    argv++;
     if((*argv)[0] != '+' && (*argv)[0] != '-'){
       printf("ERROR: Unable to identify expense type\n");
-      return 1;
+      return EXIT_FAILURE;
+    }
+
+    opt = getopt(argc, argv, "d:");
+    if (opt != -1 && opt == 'd'){
+      printf("Option date found with value %s!!!\n", optarg);
+      struct tm * date_opt = localtime(&date);
+      if(parse_date(optarg, date_opt)){
+        printf("ERROR: Unable to parse the given date '%s' format should be the following\n", optarg);
+        return EXIT_FAILURE;
+      }
+      date = mktime(date_opt);
     }
 
     exp.type = ((*argv)[0] == '+') ? INCOME : OUTCOME;
     exp.currency = read_currency((*argv) + 1); // Skip type
     exp.author = *++argv;
-    exp.date = time(NULL);
+    exp.date = date;
 
-    save_expense(&exp);
+    ret = save_expense(&exp);
+
+    if(ret == 0){
+      printf("SHOULD BE PRINTED...\n");
+      // TODO: print added expense
+    }
+
+    return ret;
+}
+
+int main(int argc, char *argv[]){
+  atexit(exit_clean);
+  int ret = 1;
+
+
+  if(argc <= 1) {
+    print_help();
+    exit(EXIT_FAILURE);
   }
 
-  arena_free(&a);
-  return 0;
+  argv++;
+  if(!strcmp("--help", *argv) || !strcmp("-h", *argv)){
+    print_help();
+    exit(EXIT_SUCCESS);
+  }
+
+  // Parse cmd
+  if(!strcmp("add", *argv) && argc >= 4){
+    ret = cmd_add(argc, argv);
+  }
+
+  exit(ret);
 }
