@@ -118,6 +118,7 @@ int cmd_add(int argc, char *argv[]){
     Expense exp;
     int opt, ret;
     time_t date = time(NULL);
+    struct tm * date_opt = localtime(&date);
 
     argv++;
     if((*argv)[0] != '+' && (*argv)[0] != '-'){
@@ -127,8 +128,6 @@ int cmd_add(int argc, char *argv[]){
 
     opt = getopt(argc, argv, "d:");
     if (opt != -1 && opt == 'd'){
-      printf("Option date found with value %s!!!\n", optarg);
-      struct tm * date_opt = localtime(&date);
       if(parse_date(optarg, date_opt)){
         printf("ERROR: Unable to parse the given date '%s' format should be the following\n", optarg);
         return EXIT_FAILURE;
@@ -144,11 +143,15 @@ int cmd_add(int argc, char *argv[]){
     ret = save_expense(&exp);
 
     if(ret == 0){
-      printf("SHOULD BE PRINTED...\n");
-      // TODO: print added expense
+      print_exp(&exp);
     }
 
     return ret;
+}
+
+int cmd_monthly_resume(){
+  printf("NOT IMPLEMENTED YET...\n");
+  return 0;
 }
 
 int main(int argc, char *argv[]){

@@ -10,6 +10,11 @@ extern Arena a; // WARNING: Declared inside displayer.c
 #define EXPENSE_DATE_SIZE 8
 #define MAX_CURRENCY_N_SIZE 7
 #define MAX_CURRENCY_F_SIZE 2
+#define MAX_STDOUT_AUTHOR 20
+
+#define RED_COLOR "\x1b[31m"
+#define GREEN_COLOR "\x1b[32m"
+#define RESET_COLOR "\x1b[0m"
 
 typedef enum __expense_type {
   INCOME,
@@ -44,11 +49,13 @@ ExpenseType get_type(char * type_string);
 
 #define exp_init_now(exp, currency, type, author) exp_init(exp, currency, (time_t) NULL, type, author)
 // #define exp_print(exp) TraceLog(LOG_INFO, "%s: exp.cost: %d, exp.author: %s, exp.date %s", LOG_PNAME, exp->cost, exp->author, exp->sdate)
+void print_exp(Expense * exp);
+
 
 void account_add_exp(Account * account, Currency currency, time_t time, ExpenseType type, char * author);
 Currency account_get_total(Account * account);
 
-#define print_currency(c) printf("%6d.%02d\n", c.number, c.fraction)
+#define print_currency(c) printf("%5d.%02d\n", c.number, c.fraction)
 
 void add(Currency * src, Currency to_add);
 void sub(Currency * src, Currency to_sub);

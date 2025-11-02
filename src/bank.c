@@ -38,6 +38,24 @@ void account_add_exp(Account * account, Currency currency, time_t time, ExpenseT
   }
 }
 
+void print_exp(Expense * exp){
+  struct tm * date = localtime(&exp->date);
+
+  printf("----------------------------------------------\n");
+  printf("| %02d/%02d |", date->tm_mday, date->tm_mon + 1);
+  if(exp->type == INCOME)
+    fputs(GREEN_COLOR, stdout);
+  else
+    fputs(RED_COLOR, stdout);
+  printf(" %5d.%02d ", exp->currency.number, exp->currency.fraction);
+  fputs(RESET_COLOR, stdout);
+  if(strlen(exp->author) > MAX_STDOUT_AUTHOR)
+    printf("| %20.20s... |\n", exp->author);
+  else 
+    printf("| %23.23s |\n", exp->author);
+  printf("----------------------------------------------\n");
+}
+
 Currency account_get_total(Account * account)
 {
   int number_part = 0, fraction_part = 0;
