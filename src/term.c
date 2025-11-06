@@ -17,9 +17,26 @@
 
 Arena a = { 0 };
 char path[PATH_MAX_SIZE]; 
+char * prog;
+time_t current_time;
 
 void exit_clean(){
   arena_free(&a);
+}
+
+int get_line(char * buffer, int buffer_size, FILE * stream){
+  int c = 0, i = 0;
+  while((c = fgetc(stream)) != EOF && c != '\n'){
+    if(i > buffer_size - 2){ // Size - 1 (- 1 '\0')
+      fprintf(stderr, "%s: error overflow buffer\n", prog);
+      return -1;
+    }
+
+    buffer[i++] = c;
+  }
+
+  buffer[i] = '\0';
+  return c;
 }
 
 int parse_date(char * arg, struct tm * date){
@@ -110,6 +127,7 @@ int save_expense(Expense * exp){
 void print_help(){
   printf("Help: \n");
   printf("  add: to add an expense\n");
+  printf("  resume: to resume monthly expense\n");
 }
 
 // Add an expense
@@ -117,8 +135,8 @@ void print_help(){
 int cmd_add(int argc, char *argv[]){
     Expense exp;
     int opt, ret;
-    time_t date = time(NULL);
-    struct tm * date_opt = localtime(&date);
+    time_t date = current_time;
+    struct tm * date_opt = localtime(&current_time);
 
     argv++;
     if((*argv)[0] != '+' && (*argv)[0] != '-'){
@@ -149,8 +167,23 @@ int cmd_add(int argc, char *argv[]){
     return ret;
 }
 
-int cmd_monthly_resume(){
-  printf("NOT IMPLEMENTED YET...\n");
+int cmd_monthly_resume(int argc, char *argv[]){
+  struct tm * readable_time = localtime(&current_time);
+  int ret = 1;
+
+  FILE * fp;
+  if((fp = fopen(PATH_STORAGE, "r")) == NULL){
+    fprintf(stderr, "%s: error while loading '%s' file", prog, PATH_STORAGE);
+    return 1;
+  }
+
+  char buffer[BUFSIZ];
+
+  // date, cost, author, type
+  while((ret = get_line(buffer, BUFSIZ, fp)) != EOF && ret != -1){
+    printf("%s\n", buffer);
+  }
+
   return 0;
 }
 
@@ -158,14 +191,15 @@ int main(int argc, char *argv[]){
   atexit(exit_clean);
   int ret = 1;
 
+  current_time = time(NULL);
 
-  if(argc <= 1) {
-    print_help();
+  if(current_time == -1){
+    fprintf(stderr, "%s: Unable to get current time\n", prog);
     exit(EXIT_FAILURE);
   }
 
-  argv++;
-  if(!strcmp("--help", *argv) || !strcmp("-h", *argv)){
+  prog = *argv++;
+  if(argc <= 1 || !strcmp("--help", *argv) || !strcmp("-h", *argv)) {
     print_help();
     exit(EXIT_SUCCESS);
   }
@@ -173,6 +207,10 @@ int main(int argc, char *argv[]){
   // Parse cmd
   if(!strcmp("add", *argv) && argc >= 4){
     ret = cmd_add(argc, argv);
+  }
+
+  if(!strcmp("resume", *argv)){
+    ret = cmd_monthly_resume(argc, argv);
   }
 
   exit(ret);
