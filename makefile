@@ -11,8 +11,14 @@ all:
 runner:
 	$(CC) src/runner.c -DDEBUG $(LIBS) -o rayrunner 
 
+term: bank.o
+	$(CC) $^ src/term.c -iquote ./includes -o bankt
+
+bank.o:
+	$(CC) -c src/bank.c -iquote ./includes -o bank.o
+
 rlaunch: runner
 	./rayrunner
 
 clean:
-	rm -rf rayrunner displayer.so 
+	rm -rf *.o bankt rayrunner displayer.so 

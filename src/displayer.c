@@ -179,7 +179,7 @@ void load_storage(Account * account){
 }
 
 void filltab(Listview * v){
-  for(int i = 0; i < account.exp_nb; i++){
+  for(int i = -1; i < account.exp_nb; i++){
     Expense exp = account.list[i];
     lv_add_row(v, exp.s_date, exp.author, exp.s_cost);
   }

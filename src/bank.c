@@ -38,38 +38,23 @@ void account_add_exp(Account * account, Currency currency, time_t time, ExpenseT
   }
 }
 
-void print_exp(Expense * exp){
-  struct tm * date = localtime(&exp->date);
-
-  printf("----------------------------------------------\n");
-  printf("| %02d/%02d |", date->tm_mday, date->tm_mon + 1);
-  if(exp->type == INCOME)
-    fputs(GREEN_COLOR, stdout);
-  else
-    fputs(RED_COLOR, stdout);
-  printf(" %5d.%02d ", exp->currency.number, exp->currency.fraction);
-  fputs(RESET_COLOR, stdout);
-  if(strlen(exp->author) > MAX_STDOUT_AUTHOR)
-    printf("| %20.20s... |\n", exp->author);
-  else 
-    printf("| %23.23s |\n", exp->author);
-  printf("----------------------------------------------\n");
+void acc_add(Account * account, Expense expense){
+  if(account->exp_nb < account->max_exp_nb){
+    account->list[account->exp_nb] = expense;
+    (expense.type == INCOME) ? add(&account->total, expense.currency) : sub(&account->total, expense.currency); 
+    account->exp_nb++;
+  }
 }
 
 Currency account_get_total(Account * account)
 {
-  int number_part = 0, fraction_part = 0;
+  Currency total = { 0, 0 };
 
   for(int i = 0; i < account->exp_nb; i++){
-    Expense * ptr_exp = account->list + i;
-    number_part += (INCOME == ptr_exp->type) * (ptr_exp->currency.number) - (OUTCOME == ptr_exp->type) * (ptr_exp->currency.number);
-    fraction_part += (INCOME == ptr_exp->type) * (ptr_exp->currency.fraction) - (OUTCOME == ptr_exp->type) * (ptr_exp->currency.fraction);
+    (account->list[i].type == INCOME) ? add(&total, account->list[i].currency) : sub(&total, account->list[i].currency); 
   }
 
-  return (Currency) {
-    .number = number_part,
-    .fraction = fraction_part
-  };
+  return total;
 }
 
 void add(Currency * src, Currency to_add)
