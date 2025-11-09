@@ -10,8 +10,20 @@
 #define MAX_EXPENSES 1000
 #include "bank.h"
 
+#ifdef DEBUG
 #define PATH_STORAGE "./storage/my_test.csv"
+#else
+#define PATH_STORAGE "./storage/bank.csv"
+#endif
+
 #define PATH_MAX_SIZE 100
+#define BUFFER_STR_SIZE 100
+
+#define DRAW_LINE(table)          \
+  putc(' ', stdout);              \
+  for(int i = 0; i < table.w; i++)\
+    fputs(HOR_LINE, stdout);      \
+  putc('\n', stdout);
 
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
@@ -174,14 +186,14 @@ void print_exp(Expense * exp){
 
   char date_buf[20];
   char price_buf[20];
-  char author_buf[20];
+  char author_buf[100];
 
   sprintf(date_buf, "%02d/%02d", date->tm_mday, date->tm_mon + 1);
   if(exp->type == INCOME)
     sprintf(price_buf, GREEN_COLOR"%5d.%02d"RESET_COLOR, exp->currency.number, exp->currency.fraction);
   else
     sprintf(price_buf, RED_COLOR"%5d.%02d"RESET_COLOR, exp->currency.number, exp->currency.fraction);
-  sprintf(author_buf, "%10s", exp->author);
+  sprintf(author_buf, "%20.20s", exp->author);
 
   add_row(&table, 3, date_buf, price_buf, author_buf);
 
@@ -376,7 +388,7 @@ int cmd_monthly_resume(int argc, char *argv[]){
   }
 
   char line[BUFSIZ];
-  char token[100];
+  char token[BUFFER_STR_SIZE];
 
   while((ret = get_line(line, BUFSIZ, fp)) != EOF && ret != -1){
     Expense current_exp;
@@ -384,9 +396,9 @@ int cmd_monthly_resume(int argc, char *argv[]){
     // Date
     char * line_ptr = get_next_token(line, token, ',');
     current_exp.date = (time_t) atol(token);
-    struct tm * time = localtime(&current_exp.date);
+    readable_time = localtime(&current_exp.date);
 
-    if(time->tm_mon != current_mon)
+    if(readable_time->tm_mon != current_mon)
       continue;
 
     // Price
@@ -406,10 +418,26 @@ int cmd_monthly_resume(int argc, char *argv[]){
   }
 
   Table table = table_create(exp_col_w, 3, headers);
+
+  char title_str[BUFFER_STR_SIZE]; 
+  readable_time = localtime(&current_time);
+  strftime(title_str, BUFFER_STR_SIZE, "Summary for %B - %Y\n", readable_time);
+  int space = (table.w/2 + 2) - (strlen(title_str) / 2);
+  DRAW_LINE(table);
+  for(int i = 0; i < space; i++)
+    putc(' ', stdout);
+  fputs(title_str, stdout);
+  DRAW_LINE(table);
+
   fill_tab(&table, &month_account);
   print_table(&table);
 
-  printf("\nResult for this month are: %4d.%02d \n", month_account.total.number, month_account.total.fraction);
+  DRAW_LINE(table);
+  space = (table.w/2 + 2) - (strlen("Result: %5d.%02d\n") / 2);
+  for(int i = 0; i < space; i++)
+    putc(' ', stdout);
+  printf("Result: %5d.%02d\n", month_account.total.number, month_account.total.fraction);
+  DRAW_LINE(table);
 
   return 0;
 }
