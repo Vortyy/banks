@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
-#include <wchar.h>
 
 #define _XOPEN_SOURCE
 #include <time.h>
@@ -10,37 +9,28 @@
 #define MAX_EXPENSES 1000
 #include "bank.h"
 
+// TODO
 #ifdef DEBUG
 #define PATH_STORAGE "./storage/my_test.csv"
-#else
-#define PATH_STORAGE "./storage/bank.csv"
 #endif
 
+#define STORAGE_PATH_ENV "BANK_STORAGE_PATH"
 #define PATH_MAX_SIZE 100
 #define BUFFER_STR_SIZE 100
 
 #define DRAW_LINE(table)          \
   putc(' ', stdout);              \
   for(int i = 0; i < table.w; i++)\
-    fputs(HOR_LINE, stdout);      \
+    fputs("\u2500", stdout);      \
   putc('\n', stdout);
 
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 
 Arena a = { 0 };
-char path[PATH_MAX_SIZE]; 
 char * prog;
+char * storage_path;
 time_t current_time;
-
-Expense list[MAX_EXPENSES];
-Account month_account = {
-  .total = { 0, 0 },
-  .name = "Yohan",
-  .list = list,
-  .exp_nb = 0,
-  .max_exp_nb = MAX_EXPENSES
-};
 
 char * headers[] = {"date", "price", "author"};
 int exp_col_w[3] = {
@@ -49,9 +39,19 @@ int exp_col_w[3] = {
   20 // author
 };
 
+Expense list[MAX_EXPENSES];
+Account month_account = {
+  .total = 0,
+  .name = "Yohan",
+  .list = list,
+  .exp_nb = 0,
+  .max_exp_nb = MAX_EXPENSES
+};
+
 // Renderer
 #include <assert.h>
 
+// Symbols
 #define TOP_L_CORNER "\u256D"
 #define TOP_R_CORNER "\u256E"
 #define BOT_L_CORNER "\u2570"
@@ -63,6 +63,7 @@ int exp_col_w[3] = {
 #define L_CROSS "\u251C"
 #define R_CROSS "\u2524"
 
+// Colors 
 #define RED_COLOR "\x1b[31m"
 #define GREEN_COLOR "\x1b[32m"
 #define RESET_COLOR "\x1b[0m"
@@ -190,9 +191,9 @@ void print_exp(Expense * exp){
 
   sprintf(date_buf, "%02d/%02d", date->tm_mday, date->tm_mon + 1);
   if(exp->type == INCOME)
-    sprintf(price_buf, GREEN_COLOR"%5d.%02d"RESET_COLOR, exp->currency.number, exp->currency.fraction);
+    sprintf(price_buf, GREEN_COLOR"%5d.%02d"RESET_COLOR, get_number(exp->price), get_fraction(exp->price));
   else
-    sprintf(price_buf, RED_COLOR"%5d.%02d"RESET_COLOR, exp->currency.number, exp->currency.fraction);
+    sprintf(price_buf, RED_COLOR"%5d.%02d"RESET_COLOR, get_number(exp->price), get_fraction(exp->price));
   sprintf(author_buf, "%20.20s", exp->author);
 
   add_row(&table, 3, date_buf, price_buf, author_buf);
@@ -253,7 +254,7 @@ int parse_date(char * arg, struct tm * date){
   return 0;
 }
 
-Currency read_currency(char * arg){
+int read_currency(char * arg){
   char number[MAX_CURRENCY_N_SIZE + 1];
   char fraction[MAX_CURRENCY_F_SIZE + 1];
 
@@ -276,35 +277,25 @@ Currency read_currency(char * arg){
     
   fraction[i] = '\0';
 
-  return (Currency) {
-    .number = atoi(number),
-    .fraction = atoi(fraction)
-  };
+  int n = atoi(number) * 100;
+  int f = atoi(fraction);
+  return n + f;
 }
 
 int save_expense(Expense * exp){
   FILE * fp;
 
-  struct tm * pTime = localtime(&exp->date);
-  strftime(path, PATH_MAX_SIZE, PATH_STORAGE, pTime);
-
-  if((fp = fopen(path, "a+")) == NULL){
-    printf("ERROR: Unable to open '%s'\n", path);
+  if((fp = fopen(storage_path, "a+")) == NULL){
+    printf("ERROR: Unable to open '%s'\n", storage_path);
     return 1;
   }
 
   // date, cost, author, type
-  int ret = fprintf(fp, "%ld,%d.%02d,%s,%d\n", exp->date, exp->currency.number, exp->currency.fraction, exp->author, exp->type);
+  int ret = fprintf(fp, "%ld,%d.%02d,%s,%d\n", exp->date, get_number(exp->price), get_fraction(exp->price), exp->author, exp->type);
 
   fclose(fp);
   return 0;
 } 
-
-void print_help(){
-  printf("Help: \n");
-  printf("  add: to add an expense\n");
-  printf("  resume: to resume monthly expense\n");
-}
 
 // Add an expense
 // bank add (+/-)154.59 "pizzas with my friends" -d 19/10
@@ -330,7 +321,7 @@ int cmd_add(int argc, char *argv[]){
     }
 
     exp.type = ((*argv)[0] == '+') ? INCOME : OUTCOME;
-    exp.currency = read_currency((*argv) + 1); // Skip type
+    exp.price = read_currency((*argv) + 1); // Skip type
     exp.author = *++argv;
     exp.date = date;
 
@@ -368,9 +359,9 @@ void fill_tab(Table * table, Account * account){
 
     sprintf(date_str, "%02d/%02d", time->tm_mday, time->tm_mon + 1);
     if(exp.type == INCOME)
-      sprintf(price_str, GREEN_COLOR"%5d.%02d"RESET_COLOR, exp.currency.number, exp.currency.fraction);
+      sprintf(price_str, GREEN_COLOR"%5d.%02d"RESET_COLOR, get_number(exp.price), get_fraction(exp.price));
     else
-      sprintf(price_str, RED_COLOR"%5d.%02d"RESET_COLOR, exp.currency.number, exp.currency.fraction);
+      sprintf(price_str, RED_COLOR"%5d.%02d"RESET_COLOR, get_number(exp.price), get_fraction(exp.price));
 
     add_row(table, 3, date_str, price_str, exp.author);
   }
@@ -382,10 +373,15 @@ int cmd_monthly_resume(int argc, char *argv[]){
   int ret = 1;
 
   FILE * fp;
-  if((fp = fopen(PATH_STORAGE, "r")) == NULL){
-    fprintf(stderr, "%s: error while loading '%s' file", prog, PATH_STORAGE);
+  if((fp = fopen(storage_path, "r")) == NULL){
+    fprintf(stderr, "%s: error while loading '%s' file", prog, storage_path);
     return 1;
   }
+
+  char * author_filter = NULL;
+  int opt = getopt(argc - 1, argv, "a:");
+  if(opt == 'a')
+    author_filter = optarg;
 
   char line[BUFSIZ];
   char token[BUFFER_STR_SIZE];
@@ -403,12 +399,15 @@ int cmd_monthly_resume(int argc, char *argv[]){
 
     // Price
     line_ptr = get_next_token(line_ptr, token, ',');
-    current_exp.currency = read_currency(token);
+    current_exp.price = read_currency(token);
 
     // Author
     line_ptr = get_next_token(line_ptr, token, ',');
     current_exp.author = arena_alloc(&a, sizeof(char) * 21);
     sprintf(current_exp.author, "%20.20s", token);
+
+    if(author_filter != NULL && strcmp(token, author_filter))
+      continue;
 
     // Type
     line_ptr = get_next_token(line_ptr, token, ',');
@@ -436,24 +435,48 @@ int cmd_monthly_resume(int argc, char *argv[]){
   space = (table.w/2 + 2) - (strlen("Result: %5d.%02d\n") / 2);
   for(int i = 0; i < space; i++)
     putc(' ', stdout);
-  printf("Result: %5d.%02d\n", month_account.total.number, month_account.total.fraction);
+  printf("Result: %5d.%02d\n", get_number(month_account.total), get_fraction(month_account.total));
   DRAW_LINE(table);
 
   return 0;
 }
 
+void print_help(){
+  puts("Bank terminal (Bankt) -- Version 1.0.0");
+  puts(" A program to manage my bank accounts locally with a nice TUI\n");
+
+  puts("\x1b[1mCOMMANDS\x1b[0m");
+  puts("│ add: to add an expense");
+  puts("│ resume: to resume monthly expense\n");
+
+  puts("To get commands usage and help you can type:");
+  puts(" -> bankt commands -h ");
+  puts(" -> bankt commands --help ");
+}
+
 int main(int argc, char *argv[]){
   atexit(exit_clean);
-  int ret = 1;
+  int ret;
 
   current_time = time(NULL);
-
   if(current_time == -1){
     fprintf(stderr, "%s: Unable to get current time\n", prog);
     exit(EXIT_FAILURE);
   }
 
   prog = *argv++;
+
+#ifdef DEBUG
+  storage_path = PATH_STORAGE;
+#else
+  char * env = getenv(STORAGE_PATH_ENV);
+  if(env == NULL){
+    fprintf(stderr, "%s: env var '%s' not set properly\n", prog, STORAGE_PATH_ENV);
+    exit(EXIT_FAILURE);
+  }
+  storage_path = env;
+#endif
+
   if(argc <= 1 || !strcmp("--help", *argv) || !strcmp("-h", *argv)) {
     print_help();
     exit(EXIT_SUCCESS);

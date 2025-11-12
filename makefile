@@ -11,8 +11,12 @@ all:
 runner:
 	$(CC) src/runner.c -DDEBUG $(LIBS) -o rayrunner 
 
-term: bank.o
+install: bank.o
 	$(CC) $^ src/term.c -iquote ./includes -o bankt
+	mv bankt /usr/bin/bankt
+
+term: bank.o
+	$(CC) $^ src/term.c -DDEBUG -iquote ./includes -o bankt
 
 bank.o:
 	$(CC) -c src/bank.c -iquote ./includes -o bank.o

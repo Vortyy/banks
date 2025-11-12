@@ -1,9 +1,9 @@
 #include "bank.h"
 
-void exp_init(Expense * exp, Currency currency, time_t exp_time, ExpenseType type, char * author){
+void exp_init(Expense * exp, int price, time_t exp_time, ExpenseType type, char * author){
   char * buffer;
 
-  exp->currency = currency;
+  exp->price = price;
   exp->type = type;
   exp->author = author;
   exp->date = (exp_time != (time_t) NULL) ? exp_time : time(NULL);
@@ -27,54 +27,21 @@ ExpenseType get_type(char * type_string){
   return ERROR;
 }
 
-void account_add_exp(Account * account, Currency currency, time_t time, ExpenseType type, char * author){
+void account_add_exp(Account * account, int price, time_t time, ExpenseType type, char * author){
   if(account->exp_nb < account->max_exp_nb){
     Expense * exp = account->list + account->exp_nb;
     if(time == 0)
-      exp_init_now(exp, currency, type, author);
+      exp_init_now(exp, price, type, author);
     else
-      exp_init(exp, currency, time, type, author);
+      exp_init(exp, price, time, type, author);
     account->exp_nb++;
   }
 }
 
 void acc_add(Account * account, Expense expense){
   if(account->exp_nb < account->max_exp_nb){
+    account->total += (expense.type == INCOME) * expense.price - (expense.type != INCOME) * expense.price;
     account->list[account->exp_nb] = expense;
-    (expense.type == INCOME) ? add(&account->total, expense.currency) : sub(&account->total, expense.currency); 
     account->exp_nb++;
-  }
-}
-
-Currency account_get_total(Account * account)
-{
-  Currency total = { 0, 0 };
-
-  for(int i = 0; i < account->exp_nb; i++){
-    (account->list[i].type == INCOME) ? add(&total, account->list[i].currency) : sub(&total, account->list[i].currency); 
-  }
-
-  return total;
-}
-
-void add(Currency * src, Currency to_add)
-{
-  src->number += to_add.number;
-  src->fraction += to_add.fraction;
-
-  while(src->fraction >= 100) {
-    src->number++;
-    src->fraction -= 100;
-  }
-}
-
-void sub(Currency * src, Currency to_sub)
-{
-  src->number -= to_sub.number;
-  src->fraction -= to_sub.fraction;
-
-  while(src->fraction < 0) {
-    src->number--;
-    src->fraction += 100;
   }
 }

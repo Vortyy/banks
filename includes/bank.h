@@ -18,13 +18,8 @@ typedef enum __expense_type {
   ERROR
 } ExpenseType;
 
-typedef struct __expense_currency_struct {
-  int number;
-  int fraction;
-} Currency;
-
 typedef struct __expense_struct {
-  Currency currency;
+  int price;
   ExpenseType type;
   time_t date;
   char * author;
@@ -34,23 +29,22 @@ typedef struct __expense_struct {
 } Expense;
 
 typedef struct __account_struct {
-  Currency total;
+  int total;
   Expense * list;
   char * name;
   int exp_nb;
   int max_exp_nb;
 } Account;
 
-void exp_init(Expense * exp, Currency currency, time_t exp_time, ExpenseType type, char * author);
+void exp_init(Expense * exp, int price, time_t exp_time, ExpenseType type, char * author);
 ExpenseType get_type(char * type_string);
 
 #define exp_init_now(exp, currency, type, author) exp_init(exp, currency, (time_t) NULL, type, author)
 
-void account_add_exp(Account * account, Currency currency, time_t time, ExpenseType type, char * author);
+void account_add_exp(Account * account, int price, time_t time, ExpenseType type, char * author);
 void acc_add(Account * account, Expense expense);
-Currency account_get_total(Account * account);
 
-void add(Currency * src, Currency to_add);
-void sub(Currency * src, Currency to_sub);
+#define get_fraction(price) ((price < 0) ? -1 * price % 100 : price % 100)
+#define get_number(price) price / 100 
 
 #endif
