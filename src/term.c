@@ -9,7 +9,15 @@
 #define MAX_EXPENSES 1000
 #include "bank.h"
 
-// TODO
+// TODOs:
+// - Cleaning by splitting terminal rendering and command handling
+// - Clean code structure align etc
+// - Removes allocation inside bank.c
+
+// Improvements:
+// - Add category to banks
+// - Add a recap ??? (with schemas and plots)
+
 #ifdef DEBUG
 #define PATH_STORAGE "./storage/my_test.csv"
 #endif
@@ -175,8 +183,6 @@ void add_row(Table * self, int n, ...){
   self->nb_row++;
 }
 
-// Renderer end
-
 void exit_clean(){
   arena_free(&a);
 }
@@ -216,8 +222,9 @@ int get_line(char * buffer, int buffer_size, FILE * stream){
   return c;
 }
 
+// TODO: REWRITE THIS SHIT
 int parse_date(char * arg, struct tm * date){
-  char buffer[2];
+  char buffer[4];
   int i = 0;
 
   // day
@@ -236,16 +243,33 @@ int parse_date(char * arg, struct tm * date){
   // month
   buffer[0] = '\0';
   buffer[1] = '\0';
+  buffer[2] = '\0';
+  buffer[3] = '\0';
   i = 0;
-  while(*arg != '\0' && i < 2)
+  while(*arg != '\0' && *arg != '/' && i < 2)
     buffer[i++] = *arg++;
-
-  if(*arg != '\0')
-    return 1;
 
   int month = atoi(buffer);
   if(month <= 0 || month > 12)
     return 1;
+
+  // year
+  if(*arg == '/'){
+    arg++;
+    buffer[0] = '\0';
+    buffer[1] = '\0';
+    buffer[2] = '\0';
+    buffer[3] = '\0';
+    i = 0;
+    while(*arg != '\0' && i < 4)
+        buffer[i++] = *arg++;
+
+    int year = atoi(buffer);
+    if(year < 1900)
+      return 1;
+    
+    date->tm_year = year - 1900;
+  }
 
   // set values
   date->tm_mday = day;
@@ -311,7 +335,7 @@ int cmd_add(int argc, char *argv[]){
       return EXIT_FAILURE;
     }
 
-    opt = getopt(argc - 2, argv, "d::");
+    opt = getopt(argc - 2, argv, "d:");
     if (opt == 'd'){
       if(parse_date(optarg, date_opt)){
         printf("ERROR: Unable to parse the given date '%s' format should be the following\n", optarg);
@@ -370,6 +394,7 @@ void fill_tab(Table * table, Account * account){
 int cmd_monthly_resume(int argc, char *argv[]){
   struct tm * readable_time = localtime(&current_time);
   int current_mon = readable_time->tm_mon;
+  int current_year = readable_time->tm_year;
   int ret = 1;
 
   FILE * fp;
@@ -378,10 +403,35 @@ int cmd_monthly_resume(int argc, char *argv[]){
     return 1;
   }
 
+  int opt;
   char * author_filter = NULL;
-  int opt = getopt(argc - 1, argv, "a:");
-  if(opt == 'a')
-    author_filter = optarg;
+
+  while((opt = getopt(argc - 1, argv, "m:a:y:")) != -1){
+    switch (opt) {
+    case 'm':
+      current_mon = atoi(optarg);
+      if(current_mon < 1 || current_mon > 12){
+        fprintf(stderr, "%s: error while month should be between 1 and 12\n", prog);
+        return 1;
+      }
+      current_mon--;
+      break;
+    case 'a':
+      author_filter = optarg;
+      break;
+    case 'y':
+      current_year = atoi(optarg);
+      if(current_year < 1900){
+        fprintf(stderr, "%s: error while reading year should be > 1900\n", prog);
+        return 1;
+      }
+      current_year -= 1900;
+      break;
+    default:
+      fprintf(stderr, "%s: error while handling opt -> %d\n", prog, opt);
+      return 1;
+    }
+  }
 
   char line[BUFSIZ];
   char token[BUFFER_STR_SIZE];
@@ -394,7 +444,7 @@ int cmd_monthly_resume(int argc, char *argv[]){
     current_exp.date = (time_t) atol(token);
     readable_time = localtime(&current_exp.date);
 
-    if(readable_time->tm_mon != current_mon)
+    if(readable_time->tm_mon != current_mon || readable_time->tm_year != current_year)
       continue;
 
     // Price
@@ -420,6 +470,7 @@ int cmd_monthly_resume(int argc, char *argv[]){
 
   char title_str[BUFFER_STR_SIZE]; 
   readable_time = localtime(&current_time);
+  readable_time->tm_mon = current_mon;
   strftime(title_str, BUFFER_STR_SIZE, "Summary for %B - %Y\n", readable_time);
   int space = (table.w/2 + 2) - (strlen(title_str) / 2);
   DRAW_LINE(table);
